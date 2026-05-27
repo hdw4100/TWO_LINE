@@ -1,0 +1,34 @@
+{
+  "name": "TWO LINE",
+  "short_name": "TWO LINE",
+  "description": "TWO LINE: ASHE SPIRE — 서울 2호선 비상 운영 단말기",
+  "lang": "ko",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0a0e12",
+  "theme_color": "#2E8B57",
+  "categories": ["games"],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "prefer_related_applications": false
+}
