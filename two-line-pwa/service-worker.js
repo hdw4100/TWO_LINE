@@ -3,7 +3,7 @@
  * v123: 외부 이미지 자산 29장 캐시 포함
  */
 
-const CACHE_NAME = 'two-line-v123';
+const CACHE_NAME = 'two-line-v126';
 const CACHED_FILES = [
   './',
   './index.html',
@@ -41,6 +41,37 @@ const CACHED_FILES = [
   './assets/ref-game2.png',
   './assets/ref-game3.png',
   './assets/ref-game4.png',
+  // ─── v126 사용자 정식 자산 (30장) ───
+  './assets/user/card-buff-bird.png',
+  './assets/user/card-buff-egg.png',
+  './assets/user/card-buff-puff.png',
+  './assets/user/card-buff-rose.png',
+  './assets/user/card-han-base.jpg',
+  './assets/user/card-kang-base.jpg',
+  './assets/user/card-kang-base2.jpg',
+  './assets/user/card-misc-weapons.jpeg',
+  './assets/user/card-park-base.jpg',
+  './assets/user/card-yun-base.jpg',
+  './assets/user/char-han-idle.png',
+  './assets/user/char-han-standing.png',
+  './assets/user/char-kang-idle.png',
+  './assets/user/char-kang-standing.png',
+  './assets/user/char-yun-idle.png',
+  './assets/user/char-yun-standing.png',
+  './assets/user/cutin-han.png',
+  './assets/user/cutin-kang.png',
+  './assets/user/cutin-yun.png',
+  './assets/user/enemy-01-250610.png',
+  './assets/user/enemy-02-260408.png',
+  './assets/user/enemy-03-chartreuse-horn.png',
+  './assets/user/enemy-04-graviton-lance.png',
+  './assets/user/enemy-05-mut.png',
+  './assets/user/enemy-06-redwithrou-copy-2.png',
+  './assets/user/enemy-07-catio.png',
+  './assets/user/enemy-08-cffd26250923725b.png',
+  './assets/user/enemy-09-copy.png',
+  './assets/user/enemy-10-dde3.png',
+  './assets/user/enemy-11-mida.png',
 ];
 
 self.addEventListener('install', (event) => {

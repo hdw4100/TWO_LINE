@@ -27192,8 +27192,8 @@ document.addEventListener('keydown', (e) => {
   font-size: 13px; font-weight: 600; cursor: pointer;
   border-radius: 4px; letter-spacing: 1px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-  display: none !important;
-" aria-hidden="true" title="이미지 자산 관리 (Ctrl+Shift+A로 열기)">🎬 자산 STUDIO</button>
+  display: inline-block;
+" title="이미지 자산 관리 (Ctrl+Shift+A로 열기)">🎬 자산 STUDIO</button>
 <script>
   document.getElementById('asset-manager-btn').addEventListener('click', () => {
     // Asset Studio가 있으면 그쪽 우선, 폴백으로 옛 모달
@@ -57472,336 +57472,613 @@ html { font-size: var(--tl-font-base); }
 </script>
 
 <!-- ════════════════════════════════════════════════════════════════════
-     [PATCH-V123] 외부 이미지 자산 통합 (ui.pptx에서 추출 29장)
-     - 메인 메뉴 배경 + 로고 보조 일러스트
-     - HUD HP♥/Gold🪙 이모지를 PNG 이미지로 교체
-     - 캐릭터 선택 배경에 윤세아 일러스트
-     - 메인 메뉴에 "🎨 자산 갤러리" 버튼 추가 (전체 29장 카탈로그)
-     의존: ./assets/ 폴더의 PNG/JPG (29 파일)
+     [PATCH-V124] Import/Export 확장 — 이미지 + Excel→CSV 자동 변환
+       · v123 롤백 후 진행
+       · v122 TL_IO (JSON export/import)는 보존하면서 기능만 확장
+       · #asset-manager-btn 복구는 inline style 직접 수정 (display: inline-block)
+       · IndexedDB 저장 → 새로고침 후에도 유지
+       · SheetJS는 CDN(unpkg)에서 lazy load
      ════════════════════════════════════════════════════════════════════ -->
-<style id="patch-v123-assets-css">
-/* 메뉴 배경 — 지하철 mockup 희미하게 */
-.menu-bg.v123-themed {
-  background-image: linear-gradient(rgba(10,14,18,0.85), rgba(10,14,18,0.95)), url('assets/mockup-subway.jpg');
-  background-size: cover;
-  background-position: center;
-  opacity: 0.4;
-}
+<style id="patch-v124-ie-ext-css">
+/* v124 — 통합 Import/Export 모달 보조 스타일 (v122 모달과 공존) */
 
-/* 로고 wrap 위에 TWO LINE 일러스트 띄움 */
-.logo-wrap.v123-themed { position: relative; }
-.logo-wrap.v123-themed::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: -150px;
-  transform: translateX(-50%);
-  width: 360px;
-  height: 200px;
-  background-image: url('assets/logo-banner.jpg');
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
-  opacity: 0.55;
-  z-index: 0;
-  pointer-events: none;
-  filter: drop-shadow(0 0 12px rgba(155,228,173,0.3));
-}
-
-/* HUD HP icon — ♥ → icon-heart.png */
-.hud-heart-v123 {
-  display: inline-block !important;
-  width: 20px !important;
-  height: 20px !important;
-  background-image: url('assets/icon-heart.png');
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  vertical-align: middle;
-  text-indent: -9999px;
-  overflow: hidden;
-}
-
-/* HUD Gold icon — 🪙 → icon-gold.png */
-.hud-gold-icon-v123 {
-  display: inline-block !important;
-  width: 20px !important;
-  height: 20px !important;
-  background-image: url('assets/icon-gold.png');
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  vertical-align: middle;
-  text-indent: -9999px;
-  overflow: hidden;
-}
-
-/* 캐릭터 선택 배경 (윤세아 일러스트) */
-.char-select-bg.v123-themed {
-  background-image: linear-gradient(rgba(10,14,18,0.70), rgba(10,14,18,0.92)), url('assets/char-yunsea.jpg');
-  background-size: cover;
-  background-position: center top;
-  opacity: 0.6;
-}
-
-/* ────── Asset Gallery 화면 ────── */
-.v123-gallery-screen {
-  position: fixed;
-  inset: 0;
-  background: rgba(10,14,18,0.97);
-  z-index: 99999;
-  display: none;
-  flex-direction: column;
-  padding: 30px;
-  overflow-y: auto;
-  color: #d6e4dc;
-  font-family: inherit;
-}
-.v123-gallery-screen.show { display: flex; }
-.v123-gallery-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #2E8B57;
-}
-.v123-gallery-title {
-  font-size: 22px;
+/* 이미지/엑셀 드롭존 */
+.tl-v124-dropzone {
+  border: 2px dashed #2E8B57;
+  border-radius: 8px;
+  padding: 18px;
+  text-align: center;
+  margin-top: 12px;
   color: #9be4ad;
-  font-weight: 700;
-  letter-spacing: 1px;
+  background: rgba(46,139,87,0.05);
+  transition: background 0.15s, border-color 0.15s;
+  cursor: pointer;
 }
-.v123-gallery-close {
-  padding: 8px 18px;
-  background: rgba(46,139,87,0.15);
+.tl-v124-dropzone:hover { background: rgba(46,139,87,0.1); }
+.tl-v124-dropzone.dragging { background: rgba(46,139,87,0.25); border-color: #9be4ad; }
+
+.tl-v124-section-title {
+  font-size: 12px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #6ec8a3;
+  margin: 14px 0 4px;
+}
+
+.tl-v124-row {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.tl-v124-btn {
+  padding: 8px 14px;
+  background: rgba(46,139,87,0.18);
   border: 1px solid #2E8B57;
-  color: #9be4ad;
+  color: #c8e6d3;
   border-radius: 4px;
   cursor: pointer;
+  font-size: 12px;
   font-family: inherit;
-  font-size: 13px;
 }
-.v123-gallery-close:hover { background: rgba(46,139,87,0.3); }
-.v123-gallery-section { margin-bottom: 28px; }
-.v123-gallery-section-title {
-  font-size: 14px;
-  color: #6ec8a3;
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  margin-bottom: 10px;
+.tl-v124-btn:hover { background: rgba(46,139,87,0.32); }
+.tl-v124-btn.primary {
+  background: linear-gradient(180deg, #2E8B57, #1f5e3a);
+  color: #fff;
 }
-.v123-gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
+
+.tl-v124-list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  max-height: 140px;
+  overflow-y: auto;
+  background: rgba(0,0,0,0.25);
+  border-radius: 4px;
 }
-.v123-gallery-item {
-  border: 1px solid #2E8B57;
-  border-radius: 6px;
-  padding: 8px;
-  background: rgba(46,139,87,0.05);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  transition: transform 0.15s, border-color 0.15s;
+.tl-v124-list li {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #d6e4dc;
+  border-bottom: 1px solid rgba(46,139,87,0.18);
+  display: flex; justify-content: space-between; align-items: center;
 }
-.v123-gallery-item:hover {
-  transform: translateY(-2px);
-  border-color: #9be4ad;
-}
-.v123-gallery-item img {
-  width: 100%;
-  height: 100px;
+.tl-v124-list li:last-child { border-bottom: none; }
+.tl-v124-list .tl-v124-thumb {
+  width: 28px; height: 28px;
   object-fit: contain;
   background: #0a0e12;
-  border-radius: 4px;
-}
-.v123-gallery-item-label {
-  font-size: 11px;
-  color: #c8d6cf;
-  text-align: center;
-  word-break: keep-all;
+  border-radius: 3px;
+  margin-right: 8px;
 }
 
-/* 메인 메뉴 — 자산 갤러리 버튼 */
-.v123-gallery-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 18px;
-  background: rgba(46,139,87,0.12);
-  border: 1px solid #2E8B57;
-  color: #9be4ad;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  letter-spacing: 0.5px;
-  margin: 12px auto 0;
-  font-family: inherit;
-  align-self: center;
+.tl-v124-msg {
+  margin-top: 6px;
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 3px;
 }
-.v123-gallery-btn:hover {
-  background: rgba(46,139,87,0.25);
-  transform: translateY(-1px);
-}
+.tl-v124-msg.ok   { background: rgba(46,139,87,0.18); color: #9be4ad; }
+.tl-v124-msg.err  { background: rgba(232,72,64,0.18); color: #ffb8b3; }
+.tl-v124-msg.info { background: rgba(46,139,87,0.10); color: #c8d6cf; }
 </style>
 
-<script id="patch-v123-assets-js">
+<script id="patch-v124-ie-ext-js">
 (function(){
   'use strict';
 
-  var ASSETS = {
-    logo:   { small: 'assets/logo-small.png', title: 'assets/logo-title.jpg', banner: 'assets/logo-banner.jpg' },
-    char:   { yunsea: 'assets/char-yunsea.jpg', shadow: 'assets/char-shadow.png' },
-    icon:   {
-      attack:   'assets/icon-attack.png',
-      fear:     'assets/icon-fear.png',
-      shield:   'assets/icon-shield.jpg',
-      hp:       'assets/icon-hp.png',
-      confused: 'assets/icon-confused.png',
-      heart:    'assets/icon-heart.png',
-      gold:     'assets/icon-gold.png',
-      bag:      'assets/icon-bag.png',
-      circuit:  'assets/icon-circuit.png',
-      cards:    'assets/icon-cards.png',
-      settings: 'assets/icon-settings.png',
-      swords:   'assets/icon-swords.png',
-      cross:    'assets/icon-cross.png'
-    },
-    deco:   { wreath: 'assets/deco-wreath.png', touch: 'assets/deco-touch.png' },
-    mockup: { subway: 'assets/mockup-subway.jpg', battle: 'assets/mockup-battle.png' },
-    ref:    {
-      hadesMenu: 'assets/ref-hades-menu.png',
-      hadesChar: 'assets/ref-hades-char.png',
-      chart:     'assets/ref-chart.png',
-      game1:     'assets/ref-game1.png',
-      game2:     'assets/ref-game2.png',
-      game3:     'assets/ref-game3.png',
-      game4:     'assets/ref-game4.png'
-    }
-  };
-  window.TL_ASSETS = ASSETS;
-
-  function themeMenu() {
-    var bg = document.getElementById('menu-bg');
-    if (bg) bg.classList.add('v123-themed');
-    var lw = document.querySelector('.logo-wrap');
-    if (lw) lw.classList.add('v123-themed');
-    var cb = document.getElementById('char-select-bg');
-    if (cb) cb.classList.add('v123-themed');
-  }
-
-  function replaceHudIcons() {
-    var heart = document.getElementById('hud-heart');
-    if (heart && !heart.classList.contains('hud-heart-v123')) {
-      var t = (heart.textContent || '').trim();
-      if (t === '♥' || t === '♥') {
-        heart.innerHTML = '';
-        heart.classList.add('hud-heart-v123');
-      }
-    }
-    document.querySelectorAll('.hud-gold-icon').forEach(function(g){
-      if (g.classList.contains('hud-gold-icon-v123')) return;
-      var t = (g.textContent || '').trim();
-      if (t === '🪙' || t.charCodeAt(0) === 0xD83E) {
-        g.innerHTML = '';
-        g.classList.add('hud-gold-icon-v123');
-      }
-    });
-  }
-
-  function buildGallery() {
-    if (document.getElementById('v123-gallery-screen')) return;
-    var screen = document.createElement('div');
-    screen.id = 'v123-gallery-screen';
-    screen.className = 'v123-gallery-screen';
-    screen.innerHTML = [
-      '<div class="v123-gallery-header">',
-      '  <div class="v123-gallery-title">🎨 ASSET GALLERY — 게임 자산 카탈로그 (29장)</div>',
-      '  <button class="v123-gallery-close" id="v123-gallery-close">✕ 닫기</button>',
-      '</div>',
-      '<div class="v123-gallery-section"><div class="v123-gallery-section-title">🏷️ Logo / Title</div><div class="v123-gallery-grid" id="v123-grid-logo"></div></div>',
-      '<div class="v123-gallery-section"><div class="v123-gallery-section-title">👤 Character</div><div class="v123-gallery-grid" id="v123-grid-char"></div></div>',
-      '<div class="v123-gallery-section"><div class="v123-gallery-section-title">⚙️ UI Icons</div><div class="v123-gallery-grid" id="v123-grid-icon"></div></div>',
-      '<div class="v123-gallery-section"><div class="v123-gallery-section-title">🌸 Decoration</div><div class="v123-gallery-grid" id="v123-grid-deco"></div></div>',
-      '<div class="v123-gallery-section"><div class="v123-gallery-section-title">🖼️ Mockup</div><div class="v123-gallery-grid" id="v123-grid-mockup"></div></div>',
-      '<div class="v123-gallery-section"><div class="v123-gallery-section-title">📌 Reference (다른 게임 디자인 참조)</div><div class="v123-gallery-grid" id="v123-grid-ref"></div></div>'
-    ].join('\n');
-    document.body.appendChild(screen);
-
-    function fill(gridId, group) {
-      var grid = document.getElementById(gridId);
-      if (!grid) return;
-      Object.keys(group).forEach(function(key){
-        var src = group[key];
-        var item = document.createElement('div');
-        item.className = 'v123-gallery-item';
-        var img = document.createElement('img');
-        img.src = src;
-        img.alt = key;
-        img.loading = 'lazy';
-        img.onerror = function(){ this.style.opacity = '0.3'; this.alt = key + ' (load fail)'; };
-        var label = document.createElement('div');
-        label.className = 'v123-gallery-item-label';
-        label.textContent = key;
-        item.appendChild(img);
-        item.appendChild(label);
-        grid.appendChild(item);
-      });
-    }
-    fill('v123-grid-logo', ASSETS.logo);
-    fill('v123-grid-char', ASSETS.char);
-    fill('v123-grid-icon', ASSETS.icon);
-    fill('v123-grid-deco', ASSETS.deco);
-    fill('v123-grid-mockup', ASSETS.mockup);
-    fill('v123-grid-ref', ASSETS.ref);
-
-    document.getElementById('v123-gallery-close').onclick = function(){
-      screen.classList.remove('show');
+  // ─── 글로벌 자산 매핑 (v123에서 쓰던 거 보존: TL_ASSETS 다시 정의해도 됨) ───
+  if (!window.TL_ASSETS) {
+    window.TL_ASSETS = {
+      // 기본 자산 매핑 — assets/ 폴더 안에 파일이 있을 때만 동작
+      logo:   { small: 'assets/logo-small.png', title: 'assets/logo-title.jpg', banner: 'assets/logo-banner.jpg' },
+      char:   { yunsea: 'assets/char-yunsea.jpg', shadow: 'assets/char-shadow.png' },
+      icon:   {
+        attack: 'assets/icon-attack.png', shield: 'assets/icon-shield.jpg',
+        heart:  'assets/icon-heart.png',  gold:   'assets/icon-gold.png',
+        bag:    'assets/icon-bag.png',    cards:  'assets/icon-cards.png',
+        settings:'assets/icon-settings.png', swords:'assets/icon-swords.png'
+      },
+      // 사용자 import 자산
+      userAssets: {}
     };
-    screen.addEventListener('click', function(e){
-      if (e.target === screen) screen.classList.remove('show');
+  } else if (!window.TL_ASSETS.userAssets) {
+    window.TL_ASSETS.userAssets = {};
+  }
+
+  // ─── IndexedDB 헬퍼 (사용자 import 이미지를 영구 저장) ───
+  var DB_NAME = 'tl-v124-assets';
+  var STORE   = 'images';
+
+  // indexedDB 미지원/금지 환경 (시크릿 모드, jsdom 등) 호환성
+  var IDB_AVAILABLE = (typeof indexedDB !== 'undefined' && indexedDB !== null);
+  function openDB() {
+    return new Promise(function(resolve, reject){
+      if (!IDB_AVAILABLE) {
+        reject(new Error('indexedDB 미지원'));
+        return;
+      }
+      try {
+        var req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = function(e){
+          var db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE)){
+            db.createObjectStore(STORE, { keyPath: 'name' });
+          }
+        };
+        req.onsuccess = function(e){ resolve(e.target.result); };
+        req.onerror   = function(e){ reject(e.target.error); };
+      } catch(err) {
+        reject(err);
+      }
     });
   }
 
-  function openGallery() {
-    buildGallery();
-    document.getElementById('v123-gallery-screen').classList.add('show');
+  function dbPutImage(name, blob) {
+    return openDB().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(STORE, 'readwrite');
+        var st = tx.objectStore(STORE);
+        st.put({ name: name, blob: blob, addedAt: Date.now() });
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(e){ reject(e.target.error); };
+      });
+    });
   }
-  window.TL_openAssetGallery = openGallery;
-
-  function addGalleryBtn() {
-    if (document.getElementById('v123-gallery-btn')) return;
-    var menuContent = document.querySelector('#menu .menu-content');
-    if (!menuContent) return;
-    var btn = document.createElement('button');
-    btn.id = 'v123-gallery-btn';
-    btn.className = 'v123-gallery-btn';
-    btn.textContent = '🎨 자산 갤러리 (29장)';
-    btn.onclick = openGallery;
-    menuContent.appendChild(btn);
+  function dbGetAllImages() {
+    return openDB().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(STORE, 'readonly');
+        var st = tx.objectStore(STORE);
+        var req = st.getAll();
+        req.onsuccess = function(){ resolve(req.result || []); };
+        req.onerror = function(e){ reject(e.target.error); };
+      });
+    });
+  }
+  function dbDeleteImage(name) {
+    return openDB().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(STORE, 'readwrite');
+        tx.objectStore(STORE).delete(name);
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(e){ reject(e.target.error); };
+      });
+    });
   }
 
+  // 부팅 시 — 저장된 사용자 자산 전부 TL_ASSETS.userAssets 에 등록 (blob URL)
+  function bootRehydrate() {
+    return dbGetAllImages().then(function(items){
+      items.forEach(function(it){
+        try {
+          var url = URL.createObjectURL(it.blob);
+          window.TL_ASSETS.userAssets[it.name] = url;
+        } catch(e) { console.warn('[V124] rehydrate fail', it.name, e); }
+      });
+      if (items.length){
+        console.log('[V124] 사용자 자산 ' + items.length + '장 복원 (window.TL_ASSETS.userAssets)');
+      }
+    }).catch(function(e){ console.warn('[V124] DB rehydrate err', e); });
+  }
+
+  // ─── Excel(.xlsx) → CSV 자동 변환 ───
+  var SHEETJS_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+  function loadSheetJS() {
+    return new Promise(function(resolve, reject){
+      if (window.XLSX) return resolve(window.XLSX);
+      var s = document.createElement('script');
+      s.src = SHEETJS_URL;
+      s.onload = function(){ resolve(window.XLSX); };
+      s.onerror = function(){ reject(new Error('SheetJS CDN 로드 실패')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function xlsxToCsv(file) {
+    return loadSheetJS().then(function(XLSX){
+      return file.arrayBuffer().then(function(ab){
+        var wb = XLSX.read(ab, { type: 'array' });
+        var sheets = {};
+        wb.SheetNames.forEach(function(name){
+          sheets[name] = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
+        });
+        return { sheets: sheets, sheetNames: wb.SheetNames };
+      });
+    });
+  }
+
+  function downloadText(filename, text) {
+    var blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 200);
+  }
+
+  // ─── 파일 처리 통합 진입점 ───
+  function processFiles(fileList, onMsg) {
+    var msg = onMsg || function(){};
+    var results = { imported: 0, csvDownloaded: 0, errors: [] };
+    var files = Array.from(fileList || []);
+
+    var chain = Promise.resolve();
+    files.forEach(function(f){
+      var name = (f && f.name) || 'unnamed';
+      var ext = (name.split('.').pop() || '').toLowerCase();
+
+      // 이미지
+      if (/^(png|jpe?g|gif|webp|svg|bmp)$/.test(ext)){
+        chain = chain.then(function(){
+          return dbPutImage(name, f).then(function(){
+            var url = URL.createObjectURL(f);
+            window.TL_ASSETS.userAssets[name] = url;
+            results.imported++;
+            msg('OK', '이미지 저장: ' + name);
+          });
+        });
+        return;
+      }
+
+      // Excel → CSV 자동 변환
+      if (/^xlsx?$/.test(ext)){
+        chain = chain.then(function(){
+          msg('INFO', 'Excel 변환 중: ' + name);
+          return xlsxToCsv(f).then(function(out){
+            out.sheetNames.forEach(function(sname){
+              var csv = out.sheets[sname];
+              var fname = name.replace(/\.xlsx?$/i, '') + (out.sheetNames.length > 1 ? '__' + sname : '') + '.csv';
+              downloadText(fname, csv);
+              results.csvDownloaded++;
+            });
+            msg('OK', 'CSV 다운로드 완료: ' + name + ' (' + out.sheetNames.length + ' 시트)');
+          }).catch(function(e){
+            results.errors.push(name + ': ' + e.message);
+            msg('ERR', 'Excel 변환 실패: ' + name + ' — ' + e.message);
+          });
+        });
+        return;
+      }
+
+      // JSON — v122 import 핸들러로 위임
+      if (ext === 'json'){
+        chain = chain.then(function(){
+          msg('INFO', 'JSON: v122 가져오기 모달을 열어 적용하세요 (📥 가져오기 버튼)');
+        });
+        return;
+      }
+
+      // 그 외
+      chain = chain.then(function(){
+        msg('ERR', '지원 안 함: ' + name + ' (.' + ext + ')');
+        results.errors.push('unsupported: ' + name);
+      });
+    });
+
+    return chain.then(function(){ return results; });
+  }
+  window.TL_IO_EXT = { processFiles: processFiles, xlsxToCsv: xlsxToCsv, dbGetAllImages: dbGetAllImages, dbDeleteImage: dbDeleteImage };
+
+  // ─── AssetUploadModal 에 v124 패널 주입 ───
+  function injectIntoAssetModal() {
+    if (typeof window.AssetUploadModal === 'undefined') return false;
+    if (window.AssetUploadModal._v124_injected) return true;
+    window.AssetUploadModal._v124_injected = true;
+
+    // 기존 open 함수 래핑
+    var origOpen = window.AssetUploadModal.open && window.AssetUploadModal.open.bind(window.AssetUploadModal);
+    if (origOpen) {
+      window.AssetUploadModal.open = function() {
+        var r = origOpen();
+        setTimeout(decoratePanel, 100);
+        return r;
+      };
+    }
+
+    function decoratePanel() {
+      if (!window.AssetUploadModal.el) return;
+      if (window.AssetUploadModal.el.querySelector('.tl-v124-section-title')) return; // 이미 주입
+      // 자산 탭 패널 우선 → #asset-modal → el 자체 순으로 fallback
+      var container = window.AssetUploadModal.el.querySelector('.ce-panel[data-panel="assets"]')
+                   || window.AssetUploadModal.el.querySelector('#asset-modal')
+                   || window.AssetUploadModal.el;
+
+      var section = document.createElement('div');
+      section.className = 'tl-v124-section';
+      section.innerHTML = [
+        '<div class="tl-v124-section-title">📥 V124 — 이미지 · 엑셀 가져오기 (확장)</div>',
+        '<div class="tl-v124-dropzone" id="tl-v124-dropzone">',
+        '  여기에 파일을 끌어다 놓거나 클릭해서 선택<br>',
+        '  <small style="opacity:0.7;">PNG/JPG/GIF/WEBP → 자동 저장 · XLSX/XLS → CSV 자동 다운로드</small>',
+        '</div>',
+        '<input type="file" id="tl-v124-file-input" multiple accept=".png,.jpg,.jpeg,.gif,.webp,.svg,.bmp,.xlsx,.xls,.json" style="display:none;">',
+        '<div class="tl-v124-row">',
+        '  <button class="tl-v124-btn primary" id="tl-v124-pick-btn">파일 선택</button>',
+        '  <button class="tl-v124-btn" id="tl-v124-refresh-btn">저장된 이미지 새로고침</button>',
+        '  <button class="tl-v124-btn" id="tl-v124-clear-btn">전부 삭제</button>',
+        '</div>',
+        '<div class="tl-v124-section-title">📁 저장된 사용자 이미지 (IndexedDB)</div>',
+        '<ul class="tl-v124-list" id="tl-v124-list"></ul>',
+        '<div id="tl-v124-messages"></div>'
+      ].join('');
+      container.appendChild(section);
+
+      var dropzone   = section.querySelector('#tl-v124-dropzone');
+      var fileInput  = section.querySelector('#tl-v124-file-input');
+      var pickBtn    = section.querySelector('#tl-v124-pick-btn');
+      var refreshBtn = section.querySelector('#tl-v124-refresh-btn');
+      var clearBtn   = section.querySelector('#tl-v124-clear-btn');
+      var listEl     = section.querySelector('#tl-v124-list');
+      var msgsEl     = section.querySelector('#tl-v124-messages');
+
+      function appendMsg(level, txt) {
+        var cls = level === 'ERR' ? 'err' : (level === 'OK' ? 'ok' : 'info');
+        var d = document.createElement('div');
+        d.className = 'tl-v124-msg ' + cls;
+        d.textContent = '[' + level + '] ' + txt;
+        msgsEl.appendChild(d);
+        setTimeout(function(){
+          if (d.parentNode) d.parentNode.removeChild(d);
+        }, 5000);
+      }
+
+      function refreshList() {
+        listEl.innerHTML = '';
+        if (!IDB_AVAILABLE) {
+          var li = document.createElement('li');
+          li.style.opacity = '0.6';
+          li.textContent = '(현재 환경은 IndexedDB 미지원 — 새로고침 후 영구 저장 불가)';
+          listEl.appendChild(li);
+          return;
+        }
+        dbGetAllImages().then(function(items){
+          if (!items.length){
+            var li = document.createElement('li');
+            li.style.opacity = '0.6';
+            li.textContent = '(저장된 이미지 없음)';
+            listEl.appendChild(li);
+            return;
+          }
+          items.forEach(function(it){
+            var li = document.createElement('li');
+            var left = document.createElement('div');
+            left.style.display = 'flex';
+            left.style.alignItems = 'center';
+            var url = URL.createObjectURL(it.blob);
+            var img = document.createElement('img');
+            img.className = 'tl-v124-thumb';
+            img.src = url;
+            left.appendChild(img);
+            var nm = document.createElement('span');
+            nm.textContent = it.name + ' (' + (it.blob.size/1024).toFixed(1) + ' KB)';
+            left.appendChild(nm);
+            var del = document.createElement('button');
+            del.className = 'tl-v124-btn';
+            del.textContent = '삭제';
+            del.style.padding = '3px 8px';
+            del.onclick = function(){
+              dbDeleteImage(it.name).then(function(){
+                delete window.TL_ASSETS.userAssets[it.name];
+                refreshList();
+                appendMsg('OK', '삭제: ' + it.name);
+              });
+            };
+            li.appendChild(left);
+            li.appendChild(del);
+            listEl.appendChild(li);
+          });
+        });
+      }
+
+      pickBtn.onclick = function(){ fileInput.click(); };
+      fileInput.onchange = function(e){
+        processFiles(e.target.files, appendMsg).then(function(r){
+          appendMsg(r.errors.length ? 'INFO' : 'OK',
+                    '완료: 이미지 ' + r.imported + ', CSV ' + r.csvDownloaded + ', 에러 ' + r.errors.length);
+          refreshList();
+        });
+        fileInput.value = '';
+      };
+
+      dropzone.onclick = function(){ fileInput.click(); };
+      ['dragover','dragenter'].forEach(function(ev){
+        dropzone.addEventListener(ev, function(e){ e.preventDefault(); dropzone.classList.add('dragging'); });
+      });
+      ['dragleave','dragend'].forEach(function(ev){
+        dropzone.addEventListener(ev, function(e){ dropzone.classList.remove('dragging'); });
+      });
+      dropzone.addEventListener('drop', function(e){
+        e.preventDefault();
+        dropzone.classList.remove('dragging');
+        processFiles(e.dataTransfer.files, appendMsg).then(function(r){
+          appendMsg(r.errors.length ? 'INFO' : 'OK',
+                    '완료: 이미지 ' + r.imported + ', CSV ' + r.csvDownloaded + ', 에러 ' + r.errors.length);
+          refreshList();
+        });
+      });
+
+      refreshBtn.onclick = refreshList;
+      clearBtn.onclick = function(){
+        if (!confirm('IndexedDB의 사용자 이미지를 전부 삭제할까요?')) return;
+        dbGetAllImages().then(function(items){
+          return Promise.all(items.map(function(it){ return dbDeleteImage(it.name); }));
+        }).then(function(){
+          window.TL_ASSETS.userAssets = {};
+          refreshList();
+          appendMsg('OK', '전부 삭제 완료');
+        });
+      };
+
+      refreshList();
+    }
+  }
+
+  // 부팅
   function init() {
-    themeMenu();
-    replaceHudIcons();
-    addGalleryBtn();
-    console.log('[V123-ASSETS] 외부 이미지 자산 적용 완료. window.TL_openAssetGallery() 또는 메인 메뉴 버튼으로 갤러리 열기 가능.');
+    bootRehydrate().then(function(){
+      // AssetUploadModal이 늦게 정의될 수 있으니 주기적으로 확인
+      var tries = 0;
+      var iv = setInterval(function(){
+        tries++;
+        if (injectIntoAssetModal() || tries > 30) clearInterval(iv);
+      }, 500);
+      console.log('[V124] Import/Export 확장 활성화. window.TL_IO_EXT 로 직접 호출 가능.');
+    });
   }
 
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    setTimeout(init, 300);
+    setTimeout(init, 400);
   } else {
-    document.addEventListener('DOMContentLoaded', function(){
-      setTimeout(init, 300);
-    });
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(init, 400); });
   }
+})();
+</script>
+                      
 
-  // HUD 재렌더 대응 — 주기적으로 다시 적용
-  setInterval(function(){
-    try { replaceHudIcons(); } catch(_) {}
-  }, 1500);
+<!-- ============================================================
+     [PATCH-V126] 사용자 정식 자산 — 정리본 매핑
+       사용자가 폴더를 다시 정리해 캐릭터/카드에 명시적 이름 부여:
+         캐릭터/스탠딩/{윤세아,한나리,강대호}.png
+         캐릭터/스프라이트 시트/{윤세아,한나리,강대호}_Idle.png
+         캐릭터/궁극기 컷신/{윤세아,한나리,강대호}_궁극기.png
+         카드/공격/{윤세아,한나리,강대호,강대호2,박종수}_기본.jpg
+       박종수 캐릭터 자산은 없음 (카드만 있음)
+       버프 4장 + 적 11장은 자동 매핑
+     ============================================================ -->
+<script id="patch-v126-user-assets">
+(function(){
+  'use strict';
+  var BASE = 'assets/user/';
+
+  // ASSET_MANAGER 키 매핑 — 게임이 자동 적용
+  // 캐릭터: kairos=윤세아, lyra=한나리, locked_3=강대호, locked_4=박종수 (자산 없음)
+  // 슬롯 (5종): player_*_00, portrait_*, awakening_*, victory_*, defeat_*
+  // 카드: card_<id> 키
+  var AM_MAP = {
+    // ── 윤세아 (kairos) ──
+    'player_kairos_00'   : BASE + 'char-yun-idle.png',
+    'portrait_kairos'    : BASE + 'char-yun-idle.png',
+    'awakening_kairos'   : BASE + 'cutin-yun.png',
+    'victory_kairos'     : BASE + 'char-yun-standing.png',
+    'defeat_kairos'      : BASE + 'char-yun-standing.png',
+
+    // ── 한나리 (lyra) ──
+    'player_lyra_00'     : BASE + 'char-han-idle.png',
+    'portrait_lyra'      : BASE + 'char-han-idle.png',
+    'awakening_lyra'     : BASE + 'cutin-han.png',
+    'victory_lyra'       : BASE + 'char-han-standing.png',
+    'defeat_lyra'        : BASE + 'char-han-standing.png',
+
+    // ── 강대호 (locked_3) ──
+    'player_locked_3_00' : BASE + 'char-kang-idle.png',
+    'portrait_locked_3'  : BASE + 'char-kang-idle.png',
+    'awakening_locked_3' : BASE + 'cutin-kang.png',
+    'victory_locked_3'   : BASE + 'char-kang-standing.png',
+    'defeat_locked_3'    : BASE + 'char-kang-standing.png',
+
+    // ── 박종수 (locked_4) — 캐릭터 자산 없음, 카드만 있음 ──
+
+    // ── 카드 공격 5장 (signature 매핑) ──
+    'card_ks_precisionShot' : BASE + 'card-yun-base.jpg',   // 윤세아 starter signature
+    'card_ln_quickDraw'     : BASE + 'card-han-base.jpg',   // 한나리 starter signature
+    'card_kd_silentBlade'   : BASE + 'card-kang-base.jpg',  // 강대호 starter signature
+    'card_kd_quietShot'     : BASE + 'card-kang-base2.jpg', // 강대호 cardPool
+    'card_pj_hammerFist'    : BASE + 'card-park-base.jpg',  // 박종수 starter signature
+
+    // ── 카드 버프 4장 (자동 매핑 — 캐릭터별 대표 power/buff 카드) ──
+    'card_ks_inflame'      : BASE + 'card-buff-rose.png',   // 윤세아 power → 학(장미)
+    'card_ln_rageMode'     : BASE + 'card-buff-bird.png',   // 한나리 rare power → 학(새)
+    'card_kd_assassinsEye' : BASE + 'card-buff-puff.png',   // 강대호 skill rare → 학(보송)
+    'card_pj_loyaltyOath'  : BASE + 'card-buff-egg.png',    // 박종수 skill → 학(알)
+
+    // ── 적 11장 자동 매핑 (enemy_custom_01~11) ──
+    'enemy_custom_01' : BASE + 'enemy-01-250610.png',
+    'enemy_custom_02' : BASE + 'enemy-02-260408.png',
+    'enemy_custom_03' : BASE + 'enemy-03-chartreuse-horn.png',
+    'enemy_custom_04' : BASE + 'enemy-04-graviton-lance.png',
+    'enemy_custom_05' : BASE + 'enemy-05-mut.png',
+    'enemy_custom_06' : BASE + 'enemy-06-redwithrou-copy-2.png',
+    'enemy_custom_07' : BASE + 'enemy-07-catio.png',
+    'enemy_custom_08' : BASE + 'enemy-08-cffd26250923725b.png',
+    'enemy_custom_09' : BASE + 'enemy-09-copy.png',
+    'enemy_custom_10' : BASE + 'enemy-10-dde3.png',
+    'enemy_custom_11' : BASE + 'enemy-11-mida.png'
+  };
+
+  // 전체 자산 카탈로그 — 추후 코드에서 직접 참조 가능
+  window.TL_USER_ASSETS = {
+    char: {
+      yunIdle:      BASE + 'char-yun-idle.png',
+      yunStanding:  BASE + 'char-yun-standing.png',
+      hanIdle:      BASE + 'char-han-idle.png',
+      hanStanding:  BASE + 'char-han-standing.png',
+      kangIdle:     BASE + 'char-kang-idle.png',
+      kangStanding: BASE + 'char-kang-standing.png'
+    },
+    cutin: {
+      yun:  BASE + 'cutin-yun.png',
+      han:  BASE + 'cutin-han.png',
+      kang: BASE + 'cutin-kang.png'
+    },
+    cardAttack: {
+      yun:   BASE + 'card-yun-base.jpg',
+      han:   BASE + 'card-han-base.jpg',
+      kang1: BASE + 'card-kang-base.jpg',
+      kang2: BASE + 'card-kang-base2.jpg',
+      park:  BASE + 'card-park-base.jpg'
+    },
+    cardBuff: {
+      rose: BASE + 'card-buff-rose.png',
+      bird: BASE + 'card-buff-bird.png',
+      puff: BASE + 'card-buff-puff.png',
+      egg:  BASE + 'card-buff-egg.png'
+    },
+    cardMisc: BASE + 'card-misc-weapons.jpeg',
+    enemy: [
+      BASE + 'enemy-01-250610.png',
+      BASE + 'enemy-02-260408.png',
+      BASE + 'enemy-03-chartreuse-horn.png',
+      BASE + 'enemy-04-graviton-lance.png',
+      BASE + 'enemy-05-mut.png',
+      BASE + 'enemy-06-redwithrou-copy-2.png',
+      BASE + 'enemy-07-catio.png',
+      BASE + 'enemy-08-cffd26250923725b.png',
+      BASE + 'enemy-09-copy.png',
+      BASE + 'enemy-10-dde3.png',
+      BASE + 'enemy-11-mida.png'
+    ]
+  };
+
+  function applyToAssetManager() {
+    if (!window.ASSET_MANAGER) return false;
+    var AM = window.ASSET_MANAGER;
+    if (!AM.cache) AM.cache = {};
+    var applied = 0;
+    Object.keys(AM_MAP).forEach(function(k){
+      // 사용자가 직접 업로드한 게 있으면 절대 덮어쓰지 않음
+      if (!AM.cache[k]) {
+        AM.cache[k] = AM_MAP[k];
+        applied++;
+      }
+    });
+    if (applied > 0 && typeof AM.notify === 'function') {
+      try { AM.notify('*'); } catch(_) {}
+    }
+    console.log('[V126] ASSET_MANAGER 정식 자산 ' + applied + '개 등록 (캐릭터 15 + 카드 9 + 적 11 = 35 키 중 신규). 자세히: window.TL_USER_ASSETS');
+    return true;
+  }
+  function tryInit() {
+    if (!applyToAssetManager()) setTimeout(tryInit, 300);
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(tryInit, 400);
+  } else {
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(tryInit, 400); });
+  }
 })();
 </script>
