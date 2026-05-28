@@ -56752,194 +56752,6 @@ window.Phase145 = { calculateHandLayout, applyHandLayout };
   console.log('[PATCH-V107] 미리보기 HP 숫자 + 카드 이름 동적 폰트');
 })();
 </script>
-Fs = name._v107MaxFont;
-        name.style.whiteSpace = 'nowrap';
-        name.style.overflow = 'hidden';
-        var fs = maxFs;
-        name.style.fontSize = fs + 'px';
-        var guard = 0;
-        while (name.scrollWidth > name.clientWidth + 1 && fs > 7 && guard < 20){
-          fs -= 0.5;
-          name.style.fontSize = fs + 'px';
-          guard++;
-        }
-      });
-    } catch(_){}
-  }
-  setInterval(adjustCardName, 400);
-  setTimeout(adjustCardName, 500);
-
-  console.log('[PATCH-V107] 미리보기 HP 숫자 + 카드 이름 동적 폰트');
-})();
-</script>
-
-
-
-
-
-
-<style id="patch-v118-responsive">
-/* [PATCH-V118] 반응형 + 모바일 대응 */
-
-/* 데스크탑 일반 (1400~) */
-html { font-size: 16px; }
-
-/* 큰 화면 (1600+) — 약간 키움 */
-@media (min-width: 1600px) {
-  html { font-size: 17px; }
-}
-
-/* 중간 (1280~1599) */
-@media (max-width: 1599px) and (min-width: 1280px) {
-  html { font-size: 15px; }
-}
-
-/* 작은 데스크탑 / 태블릿 가로 (1024~1279) */
-@media (max-width: 1279px) and (min-width: 1024px) {
-  html { font-size: 14px; }
-  body { zoom: 0.92; }
-}
-
-/* 태블릿 (768~1023) — zoom 으로 축소 */
-@media (max-width: 1023px) and (min-width: 768px) {
-  html { font-size: 13px; }
-  body { zoom: 0.78; }
-}
-
-/* 모바일 가로 (560~767) */
-@media (max-width: 767px) and (min-width: 560px) {
-  html { font-size: 12px; }
-  body { zoom: 0.55; }
-}
-
-/* 모바일 세로 (~559) — 가로 모드 안내 + 최소 zoom */
-@media (max-width: 559px) {
-  html { font-size: 12px; }
-  body { zoom: 0.40; }
-}
-
-/* 가로 모드 안내 (세로 + 작은 화면) */
-@media (max-width: 559px) and (orientation: portrait) {
-  body::before {
-    content: "📱 가로 모드로 회전해 주세요 — 더 나은 플레이 경험";
-    position: fixed;
-    inset: 0;
-    z-index: 999999;
-    background: rgba(7,10,12,0.95);
-    color: #3eb878;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: 'Noto Sans KR', sans-serif;
-    font-size: 1.2rem;
-    font-weight: 600;
-    text-align: center;
-    padding: 2rem;
-    line-height: 1.6;
-    border: 2px solid #3eb878;
-    pointer-events: none;
-  }
-}
-
-/* 터치 디바이스 — hover 효과 비활성화 (touch에서 stuck 방지) */
-@media (hover: none) and (pointer: coarse) {
-  *:hover {
-    /* 모바일에서 hover 안 작동 — 자연스럽게 무시됨 */
-  }
-  /* 터치 타깃 최소 크기 확보 (44x44px 권장) */
-  button, .menu-btn, .card, .relic-slot, .hud-btn {
-    min-width: 44px;
-    min-height: 44px;
-    touch-action: manipulation;
-  }
-  /* 스크롤 부드럽게 */
-  body, html {
-    -webkit-overflow-scrolling: touch;
-  }
-}
-
-/* 화면 회전 시 자동 적응 */
-@media (orientation: landscape) and (max-height: 500px) {
-  /* 짧은 가로 (휴대폰 가로) */
-  body { zoom: 0.6; }
-}
-
-/* 안전 영역 (노치 디바이스) */
-@supports (padding: env(safe-area-inset-top)) {
-  body {
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
-  }
-}
-</style>
-
-<script id="patch-v118-responsive">
-(function(){
-  'use strict';
-
-  // [V118] 모바일 디바이스 감지 + body 클래스 추가
-  var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  var hasTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-  if (isMobile) document.documentElement.classList.add('is-mobile');
-  if (hasTouch) document.documentElement.classList.add('has-touch');
-
-  // 화면 회전 / resize 시 zoom 보정 — Firefox는 zoom 미지원이라 transform 폴백
-  function applyAutoScale(){
-    try {
-      var w = window.innerWidth;
-      var supportsZoom = (typeof document.body.style.zoom !== 'undefined');
-      if (supportsZoom) return;  // zoom CSS 적용됨
-      // Firefox 등 — transform: scale 폴백
-      var scale = 1;
-      if (w < 560) scale = 0.40;
-      else if (w < 768) scale = 0.55;
-      else if (w < 1024) scale = 0.78;
-      else if (w < 1280) scale = 0.92;
-      if (scale < 1){
-        document.body.style.transform = 'scale(' + scale + ')';
-        document.body.style.transformOrigin = '0 0';
-        document.body.style.width = (100 / scale) + 'vw';
-        document.body.style.minHeight = (100 / scale) + 'vh';
-      } else {
-        document.body.style.transform = '';
-        document.body.style.width = '';
-        document.body.style.minHeight = '';
-      }
-    } catch(_){}
-  }
-  window.addEventListener('resize', applyAutoScale);
-  window.addEventListener('orientationchange', function(){
-    setTimeout(applyAutoScale, 200);
-  });
-  setTimeout(applyAutoScale, 300);
-
-  // 더블탭 줌 방지 (모바일 의도하지 않은 줌 차단)
-  var lastTouchEnd = 0;
-  document.addEventListener('touchend', function(e){
-    var now = Date.now();
-    if (now - lastTouchEnd <= 300){
-      e.preventDefault();
-    }
-    lastTouchEnd = now;
-  }, { passive: false });
-
-  console.log('[PATCH-V118] 반응형 + 모바일 대응 (mobile=' + isMobile + ', touch=' + hasTouch + ')');
-})();
-</script>
- 줌 차단)
-  var lastTouchEnd = 0;
-  document.addEventListener('touchend', function(e){
-    var now = Date.now();
-    if (now - lastTouchEnd <= 300){
-      e.preventDefault();
-    }
-    lastTouchEnd = now;
-  }, { passive: false });
-
-  console.log('[PATCH-V118] 반응형 + 모바일 대응 (mobile=' + isMobile + ', touch=' + hasTouch + ')');
-})();
-</script>
-
 <script id="patch-v119-touch">
 (function(){
   'use strict';
@@ -57007,22 +56819,6 @@ html { font-size: 16px; }
   console.log('[PATCH-V119] long-press 우클릭 대체 + hover stuck 방지 활성화');
 })();
 </script>
-r 강제 해제
-        document.querySelectorAll('.card.is-hovered').forEach(function(el){
-          el.classList.remove('is-hovered');
-        });
-      } catch(_){}
-    }, 50);
-  }, { passive: true });
-
-  console.log('[PATCH-V119] long-press 우클릭 대체 + hover stuck 방지');
-})();
-</script>
-ic 대체 + hover stuck 방지');
-})();
-</script>
-/script>
-
 <script id="patch-v120-mobile-fixes">
 (function(){
   'use strict';
@@ -57096,49 +56892,916 @@ lientX, t.clientY) || document.body;
 })();
 </script>
 
-<script id="patch-v121-viewport">
+
+<style id="patch-v122-responsive">
+/* ════════════════════════════════════════════════════════════════════
+   [PATCH-V122] 통합 반응형 시스템
+   목표: PC 디자인 보존 + 모바일/태블릿/폴더블/초광폭 모두 안정
+   기법: clamp, min/max, aspect-ratio, container query, safe-area
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── 기본 reset 강화 (모바일 viewport 안정) ─────────────── */
+html {
+  /* iOS Safari 100vh 이슈 — svh 사용 */
+  height: 100%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  min-height: 100vh;
+  min-height: 100svh;
+  margin: 0;
+  /* iOS bounce 방지 */
+  overscroll-behavior: none;
+  /* safe-area 패딩 */
+  padding-top: env(safe-area-inset-top, 0);
+  padding-right: env(safe-area-inset-right, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-left: env(safe-area-inset-left, 0);
+}
+
+/* ── 반응형 타이포그래피 (fluid scaling) ───────────────── */
+:root {
+  /* clamp(min, preferred, max) — viewport 기준 */
+  --tl-font-base: clamp(13px, 1.05vw + 0.4rem, 17px);
+  --tl-font-sm:   clamp(11px, 0.85vw + 0.3rem, 14px);
+  --tl-font-lg:   clamp(15px, 1.4vw + 0.4rem, 22px);
+  --tl-font-xl:   clamp(20px, 2.2vw + 0.4rem, 32px);
+  --tl-line-base: 1.45;
+  --tl-line-tight: 1.2;
+}
+html { font-size: var(--tl-font-base); }
+
+/* ── 컨테이너 사이즈에 따른 적응 (container queries) ──── */
+.combat, .map-screen, .shop-screen, .rest-screen, .event-screen {
+  container-type: inline-size;
+  container-name: tl-screen;
+}
+
+/* ── 작은 화면 (< 1024px) — 레이아웃 압축 ─────────────── */
+@media (max-width: 1023px) {
+  /* HUD 영역 — 패딩 줄임 */
+  .hud {
+    padding: 0 0.5rem !important;
+    gap: 0.5rem !important;
+  }
+  /* 카드 hover 효과 최소화 (터치 디바이스) */
+  .hand .card { margin: 0 -10px !important; }
+}
+
+/* ── 모바일 (< 768px) ────────────────────────────────── */
+@media (max-width: 767px) {
+  :root {
+    --tl-font-base: clamp(11px, 2.8vw, 14px);
+    --tl-font-sm:   clamp(9px, 2.2vw, 12px);
+  }
+  .hud {
+    height: clamp(40px, 7vh, 56px) !important;
+    padding: 0 0.4rem !important;
+  }
+  /* 카드 영역 — 하단 고정 + 비례 축소 */
+  .hand { gap: 0; }
+  .hand .card { margin: 0 -16px !important; transform: scale(0.85); transform-origin: bottom center; }
+}
+
+/* ── 가로 모드 + 짧은 화면 (휴대폰 가로) ──────────────── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .hud { height: clamp(36px, 8vh, 48px) !important; }
+}
+
+/* ── 세로 모드 (모바일) — 가로 권장 안내 ──────────────── */
+@media (max-width: 599px) and (orientation: portrait) {
+  body::before {
+    content: "📱 가로 모드를 권장합니다";
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 999999;
+    background: rgba(7,10,12,0.96);
+    color: #3eb878;
+    border: 2px solid #3eb878;
+    border-radius: 8px;
+    padding: 1.5rem 2rem;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: center;
+    pointer-events: none;
+  }
+}
+
+/* ── 텍스트 레이아웃 보존 ─────────────────────────────── */
+/* 카드 이름 — 1줄 강제 + fluid font */
+.hand .card .card-name,
+.card-picker-grid .card .card-name {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  font-size: clamp(0.62rem, 1.0cqi, 0.92rem) !important;
+  line-height: var(--tl-line-tight) !important;
+  word-break: keep-all !important;
+}
+/* 버튼/메뉴 — 1줄 + 압축 */
+.menu-btn, .hud-btn-label, .footer-btn {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+/* 카드 설명 — 2줄 clamp */
+.hand .card .card-desc {
+  display: -webkit-box !important;
+  -webkit-line-clamp: 3 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+  line-height: var(--tl-line-base) !important;
+  word-break: keep-all !important;
+  overflow-wrap: break-word !important;
+}
+/* HUD 텍스트 — 잘림 방지 */
+.hud-name, .hud-station-name, .hud-station-code {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  min-width: 0 !important;
+}
+
+/* ── 한/영 혼용 처리 ──────────────────────────────────── */
+.menu-btn, .card-name, .card-desc, .hud-name {
+  word-break: keep-all !important;
+  overflow-wrap: anywhere;
+}
+
+/* ── 터치 디바이스 — 안전 영역 ───────────────────────── */
+@media (hover: none) and (pointer: coarse) {
+  button, .menu-btn, .card, .relic-slot, .hud-btn {
+    min-height: 36px;
+    touch-action: manipulation;
+  }
+}
+</style>
+
+<script id="patch-v122-pwa-stability">
 (function(){
   'use strict';
-  // 게임 본래 디자인: 약 1280~1920 가로
-  // 모바일 화면(~400px)에서는 viewport 자체를 1280으로 강제 → 자동 축소
-  var DESIGN_WIDTH_LANDSCAPE = 1280;
-  var DESIGN_WIDTH_PORTRAIT = 720;  // 세로 모드는 더 작게
+  var hasTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+  var isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
+  // [V122-C1] Viewport meta 동적 — viewport jumping 방지
   function applyViewport(){
     var meta = document.getElementById('viewport-meta');
     if (!meta) return;
-    var screenW = window.screen.width;
-    var screenH = window.screen.height;
-    var isLandscape = (window.innerWidth > window.innerHeight) ||
-                       (window.matchMedia && window.matchMedia('(orientation: landscape)').matches);
-    var isMobileSize = (screenW < 900) || (window.innerWidth < 900);
-    if (!isMobileSize){
-      // 데스크탑/태블릿 — 기본 device-width 유지
-      meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover');
-      return;
+    var w = window.innerWidth;
+    var content;
+    if (w >= 900){
+      // 데스크탑/태블릿 — device-width 그대로
+      content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover';
+    } else {
+      // 모바일 — 게임 디자인 폭 1280으로 강제 → 자동 축소
+      var isLandscape = window.innerWidth > window.innerHeight;
+      var designW = isLandscape ? 1280 : 800;
+      content = 'width=' + designW + ', user-scalable=yes, viewport-fit=cover';
     }
-    // 모바일 — viewport 폭을 게임 디자인 폭으로 강제 (브라우저가 자동 축소)
-    var designW = isLandscape ? DESIGN_WIDTH_LANDSCAPE : DESIGN_WIDTH_PORTRAIT;
-    var content = 'width=' + designW + ', user-scalable=yes, viewport-fit=cover';
-    meta.setAttribute('content', content);
+    if (meta.getAttribute('content') !== content){
+      meta.setAttribute('content', content);
+    }
   }
-  // 첫 실행
   applyViewport();
-  // 회전 / 리사이즈 시 재계산
   window.addEventListener('resize', applyViewport);
   window.addEventListener('orientationchange', function(){
     setTimeout(applyViewport, 200);
   });
 
-  // body zoom 충돌 방지 — v118 zoom 해제
-  function clearZoomConflict(){
-    try {
-      document.body.style.zoom = '';
-      document.body.style.transform = '';
-      document.body.style.width = '';
-      document.body.style.minHeight = '';
-    } catch(_){}
+  // [V122-C2] Virtual keyboard handling — input focus 시 viewport jumping 방지
+  if (hasTouch){
+    document.addEventListener('focusin', function(e){
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')){
+        // 키보드 올라올 때 scroll 위치 안정화
+        setTimeout(function(){
+          try { e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch(_){}
+        }, 300);
+      }
+    });
   }
-  setTimeout(clearZoomConflict, 100);
+
+  // [V122-C3] 가로/세로 회전 시 CSS 변수 갱신 (실제 vh)
+  function updateVhVar(){
+    var vh = window.innerHeight * 0.01;
+    document.documentElement.style.setProperty('--tl-vh', vh + 'px');
+  }
+  updateVhVar();
+  window.addEventListener('resize', updateVhVar);
+  window.addEventListener('orientationchange', function(){
+    setTimeout(updateVhVar, 250);
+  });
+
+  // [V122-C4] passive event handling 최적화
+  // 게임 내 hover/click 외 일반 touch는 passive (스크롤 차단 X)
+  document.addEventListener('touchstart', function(){}, { passive: true });
+  document.addEventListener('touchmove', function(){}, { passive: true });
+
+  // [V122-C5] 가속 줌 방지 (모바일 의도하지 않은 핀치 줌)
+  var lastTouchEnd = 0;
+  document.addEventListener('touchend', function(e){
+    var now = Date.now();
+    if (now - lastTouchEnd <= 300){
+      // 더블탭은 막되 단일 탭은 통과
+      if (e.target && !e.target.closest('input, textarea, select')){
+        e.preventDefault();
+      }
+    }
+    lastTouchEnd = now;
+  }, { passive: false });
+})();
+</script>
+
+<style id="patch-v122-import-export-css">
+/* [V122-D] Import/Export UI */
+.tl-ie-btn {
+  position: fixed;
+  top: env(safe-area-inset-top, 0);
+  right: 8px;
+  z-index: 99990;
+  background: linear-gradient(180deg, rgba(20,28,34,0.94), rgba(13,18,22,0.96));
+  border: 1px solid #3eb878;
+  color: #3eb878;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 4px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  user-select: none;
+  display: none;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 0.2s, transform 0.15s;
+}
+.tl-ie-btn:hover { background: rgba(46,139,87,0.2); transform: translateY(-1px); }
+.tl-ie-btn:active { transform: scale(0.96); }
+.tl-ie-export { top: calc(env(safe-area-inset-top, 0px) + 10px); right: 110px; }
+.tl-ie-import { top: calc(env(safe-area-inset-top, 0px) + 10px); right: 8px; }
+.tl-ie-btn.show { display: inline-flex; }
+
+.tl-ie-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 999990;
+  background: rgba(7,10,12,0.92);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  backdrop-filter: blur(6px);
+}
+.tl-ie-modal.show { display: flex; }
+.tl-ie-modal-content {
+  width: min(560px, 92vw);
+  max-height: 84vh;
+  background: linear-gradient(180deg, rgba(20,28,34,0.98), rgba(13,18,22,0.99));
+  border: 1px solid #3eb878;
+  border-left: 4px solid #3eb878;
+  border-radius: 6px;
+  padding: clamp(16px, 2.5vw, 24px);
+  font-family: 'Noto Sans KR', sans-serif;
+  color: #e8ecf0;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.8), 0 0 32px rgba(62,184,120,0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tl-ie-modal h3 {
+  margin: 0;
+  font-family: 'Black Han Sans', sans-serif;
+  font-size: clamp(1rem, 2.4vw, 1.4rem);
+  color: #3eb878;
+  letter-spacing: 0.12em;
+}
+.tl-ie-modal p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: #b8c2cc;
+}
+.tl-ie-modal textarea {
+  width: 100%;
+  height: clamp(180px, 40vh, 320px);
+  background: rgba(7,10,12,0.7);
+  border: 1px solid #2a3640;
+  border-radius: 4px;
+  color: #e8ecf0;
+  padding: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.tl-ie-modal .tl-ie-dropzone {
+  border: 2px dashed #3eb878;
+  border-radius: 6px;
+  padding: 16px;
+  text-align: center;
+  color: #5a8aa8;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.tl-ie-modal .tl-ie-dropzone.dragover {
+  background: rgba(46,139,87,0.15);
+  border-color: #6ee094;
+  color: #3eb878;
+}
+.tl-ie-modal .tl-ie-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.tl-ie-modal button {
+  background: rgba(46,139,87,0.18);
+  border: 1px solid #3eb878;
+  color: #3eb878;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  transition: background 0.15s;
+}
+.tl-ie-modal button:hover { background: rgba(46,139,87,0.32); }
+.tl-ie-modal button.danger { border-color: #e84840; color: #e84840; background: rgba(232,72,64,0.12); }
+.tl-ie-modal .tl-ie-status {
+  font-size: 0.78rem;
+  padding: 8px 10px;
+  border-radius: 4px;
+  display: none;
+}
+.tl-ie-modal .tl-ie-status.show { display: block; }
+.tl-ie-modal .tl-ie-status.success { background: rgba(46,139,87,0.18); color: #3eb878; border-left: 3px solid #3eb878; }
+.tl-ie-modal .tl-ie-status.error { background: rgba(232,72,64,0.15); color: #ff8a3c; border-left: 3px solid #e84840; }
+</style>
+
+<script id="patch-v122-import-export-js">
+(function(){
+  'use strict';
+
+  var SCHEMA_VERSION = 1;
+
+  // localStorage 전체를 객체로 수집
+  function collectAllData(){
+    var data = {};
+    try {
+      for (var i = 0; i < localStorage.length; i++){
+        var key = localStorage.key(i);
+        data[key] = localStorage.getItem(key);
+      }
+    } catch(e){ console.error('localStorage 읽기 실패:', e); }
+    return data;
+  }
+
+  // Export 데이터 구조
+  function buildExport(){
+    return {
+      app: 'TWO LINE',
+      version: 'v5.9.101',
+      schemaVersion: SCHEMA_VERSION,
+      exportedAt: new Date().toISOString(),
+      data: collectAllData()
+    };
+  }
+
+  // Import 데이터 검증 + 적용
+  function importData(parsed){
+    if (!parsed || typeof parsed !== 'object'){
+      return { ok: false, msg: '데이터 형식 오류 (객체 아님)' };
+    }
+    if (parsed.app && parsed.app !== 'TWO LINE'){
+      return { ok: false, msg: '다른 앱 데이터입니다 (app=' + parsed.app + ')' };
+    }
+    if (!parsed.data || typeof parsed.data !== 'object'){
+      return { ok: false, msg: 'data 필드 없음' };
+    }
+    // schemaVersion 호환성 체크 (현재 1만 지원)
+    var sv = parsed.schemaVersion || 0;
+    if (sv > SCHEMA_VERSION){
+      return { ok: false, msg: '더 최신 버전의 데이터입니다 (schema=' + sv + ')' };
+    }
+    try {
+      // 기존 데이터 백업 (자동 복원용)
+      var backup = collectAllData();
+      try { sessionStorage.setItem('tl_import_backup', JSON.stringify(backup)); } catch(_){}
+      // 모든 키 import
+      var count = 0;
+      for (var key in parsed.data){
+        if (Object.prototype.hasOwnProperty.call(parsed.data, key)){
+          var val = parsed.data[key];
+          if (typeof val === 'string'){
+            localStorage.setItem(key, val);
+            count++;
+          }
+        }
+      }
+      return { ok: true, msg: count + '개 항목 import 완료. 새로고침 권장.' };
+    } catch(e){
+      return { ok: false, msg: 'import 실패: ' + e.message };
+    }
+  }
+
+  // 파일 다운로드 (JSON)
+  function downloadJson(filename, obj){
+    var blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+  }
+
+  // ─── Modal UI 생성 ─────────────────────────────────────
+  function showModal(mode){
+    var existing = document.getElementById('tl-ie-modal');
+    if (existing) existing.remove();
+    var modal = document.createElement('div');
+    modal.id = 'tl-ie-modal';
+    modal.className = 'tl-ie-modal show';
+    var content = document.createElement('div');
+    content.className = 'tl-ie-modal-content';
+
+    if (mode === 'export'){
+      var exported = buildExport();
+      var textVal = JSON.stringify(exported, null, 2);
+      content.innerHTML =
+        '<h3>📤 세이브 내보내기</h3>' +
+        '<p>아래 텍스트를 복사하거나 파일로 다운로드 하세요. 다른 디바이스에서 가져오기로 불러올 수 있습니다.</p>' +
+        '<textarea id="tl-ie-text" readonly></textarea>' +
+        '<div class="tl-ie-actions">' +
+          '<button id="tl-ie-copy">📋 복사</button>' +
+          '<button id="tl-ie-download">💾 파일로 저장</button>' +
+          '<button id="tl-ie-close" class="danger">닫기</button>' +
+        '</div>' +
+        '<div class="tl-ie-status" id="tl-ie-status"></div>';
+      modal.appendChild(content);
+      document.body.appendChild(modal);
+      document.getElementById('tl-ie-text').value = textVal;
+      document.getElementById('tl-ie-copy').onclick = function(){
+        try {
+          navigator.clipboard.writeText(textVal);
+          showStatus('success', '클립보드에 복사됨');
+        } catch(e){
+          var ta = document.getElementById('tl-ie-text');
+          ta.select(); document.execCommand('copy');
+          showStatus('success', '복사됨 (legacy)');
+        }
+      };
+      document.getElementById('tl-ie-download').onclick = function(){
+        var fn = 'two-line-save-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.json';
+        downloadJson(fn, exported);
+        showStatus('success', '파일 다운로드: ' + fn);
+      };
+    } else {
+      // import
+      content.innerHTML =
+        '<h3>📥 세이브 가져오기</h3>' +
+        '<p>JSON 텍스트를 붙여넣거나 파일을 드래그하세요. 현재 세이브는 덮어씌워집니다.</p>' +
+        '<div class="tl-ie-dropzone" id="tl-ie-drop">파일을 여기로 드래그 또는 <u>클릭해서 선택</u></div>' +
+        '<textarea id="tl-ie-text" placeholder="또는 JSON 텍스트를 여기에 붙여넣기"></textarea>' +
+        '<div class="tl-ie-actions">' +
+          '<button id="tl-ie-apply">가져오기 실행</button>' +
+          '<button id="tl-ie-close" class="danger">취소</button>' +
+        '</div>' +
+        '<div class="tl-ie-status" id="tl-ie-status"></div>';
+      modal.appendChild(content);
+      document.body.appendChild(modal);
+
+      var drop = document.getElementById('tl-ie-drop');
+      var ta = document.getElementById('tl-ie-text');
+      var fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.json,application/json';
+      fileInput.style.display = 'none';
+      document.body.appendChild(fileInput);
+      drop.onclick = function(){ fileInput.click(); };
+      fileInput.onchange = function(e){
+        var f = e.target.files[0];
+        if (!f) return;
+        readFile(f);
+      };
+      drop.ondragover = function(e){ e.preventDefault(); drop.classList.add('dragover'); };
+      drop.ondragleave = function(){ drop.classList.remove('dragover'); };
+      drop.ondrop = function(e){
+        e.preventDefault();
+        drop.classList.remove('dragover');
+        var f = e.dataTransfer.files[0];
+        if (f) readFile(f);
+      };
+      function readFile(f){
+        var reader = new FileReader();
+        reader.onload = function(ev){
+          ta.value = ev.target.result;
+          showStatus('success', '파일 로드: ' + f.name);
+        };
+        reader.onerror = function(){ showStatus('error', '파일 읽기 실패'); };
+        reader.readAsText(f);
+      }
+      document.getElementById('tl-ie-apply').onclick = function(){
+        var raw = ta.value.trim();
+        if (!raw){ showStatus('error', '데이터가 비어있음'); return; }
+        try {
+          var parsed = JSON.parse(raw);
+          var result = importData(parsed);
+          if (result.ok){
+            showStatus('success', '✓ ' + result.msg);
+            setTimeout(function(){
+              if (confirm('가져오기 완료. 페이지를 새로고침할까요?')) location.reload();
+            }, 800);
+          } else {
+            showStatus('error', '✗ ' + result.msg);
+          }
+        } catch(e){
+          showStatus('error', 'JSON 파싱 실패: ' + e.message);
+        }
+      };
+    }
+
+    document.getElementById('tl-ie-close').onclick = function(){ modal.remove(); };
+    modal.addEventListener('click', function(e){
+      if (e.target === modal) modal.remove();
+    });
+
+    function showStatus(kind, msg){
+      var s = document.getElementById('tl-ie-status');
+      s.className = 'tl-ie-status show ' + kind;
+      s.textContent = msg;
+    }
+  }
+
+  // ─── 토글 버튼 생성 ────────────────────────────────────
+  function ensureButtons(){
+    if (document.getElementById('tl-ie-btn-export')) return;
+    var exp = document.createElement('button');
+    exp.id = 'tl-ie-btn-export';
+    exp.className = 'tl-ie-btn tl-ie-export show';
+    exp.textContent = '📤 내보내기';
+    exp.title = '세이브 내보내기';
+    exp.onclick = function(){ showModal('export'); };
+    var imp = document.createElement('button');
+    imp.id = 'tl-ie-btn-import';
+    imp.className = 'tl-ie-btn tl-ie-import show';
+    imp.textContent = '📥 가져오기';
+    imp.title = '세이브 가져오기';
+    imp.onclick = function(){ showModal('import'); };
+    document.body.appendChild(exp);
+    document.body.appendChild(imp);
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive'){
+    ensureButtons();
+  } else {
+    document.addEventListener('DOMContentLoaded', ensureButtons);
+  }
+
+  // 외부에서도 호출 가능
+  window.TL_IO = { export: function(){ showModal('export'); }, import: function(){ showModal('import'); } };
+})();
+</script>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     [PATCH-V123] 외부 이미지 자산 통합 (ui.pptx에서 추출 29장)
+     - 메인 메뉴 배경 + 로고 보조 일러스트
+     - HUD HP♥/Gold🪙 이모지를 PNG 이미지로 교체
+     - 캐릭터 선택 배경에 윤세아 일러스트
+     - 메인 메뉴에 "🎨 자산 갤러리" 버튼 추가 (전체 29장 카탈로그)
+     의존: ./assets/ 폴더의 PNG/JPG (29 파일)
+     ════════════════════════════════════════════════════════════════════ -->
+<style id="patch-v123-assets-css">
+/* 메뉴 배경 — 지하철 mockup 희미하게 */
+.menu-bg.v123-themed {
+  background-image: linear-gradient(rgba(10,14,18,0.85), rgba(10,14,18,0.95)), url('assets/mockup-subway.jpg');
+  background-size: cover;
+  background-position: center;
+  opacity: 0.4;
+}
+
+/* 로고 wrap 위에 TWO LINE 일러스트 띄움 */
+.logo-wrap.v123-themed { position: relative; }
+.logo-wrap.v123-themed::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -150px;
+  transform: translateX(-50%);
+  width: 360px;
+  height: 200px;
+  background-image: url('assets/logo-banner.jpg');
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.55;
+  z-index: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 0 12px rgba(155,228,173,0.3));
+}
+
+/* HUD HP icon — ♥ → icon-heart.png */
+.hud-heart-v123 {
+  display: inline-block !important;
+  width: 20px !important;
+  height: 20px !important;
+  background-image: url('assets/icon-heart.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  vertical-align: middle;
+  text-indent: -9999px;
+  overflow: hidden;
+}
+
+/* HUD Gold icon — 🪙 → icon-gold.png */
+.hud-gold-icon-v123 {
+  display: inline-block !important;
+  width: 20px !important;
+  height: 20px !important;
+  background-image: url('assets/icon-gold.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  vertical-align: middle;
+  text-indent: -9999px;
+  overflow: hidden;
+}
+
+/* 캐릭터 선택 배경 (윤세아 일러스트) */
+.char-select-bg.v123-themed {
+  background-image: linear-gradient(rgba(10,14,18,0.70), rgba(10,14,18,0.92)), url('assets/char-yunsea.jpg');
+  background-size: cover;
+  background-position: center top;
+  opacity: 0.6;
+}
+
+/* ────── Asset Gallery 화면 ────── */
+.v123-gallery-screen {
+  position: fixed;
+  inset: 0;
+  background: rgba(10,14,18,0.97);
+  z-index: 99999;
+  display: none;
+  flex-direction: column;
+  padding: 30px;
+  overflow-y: auto;
+  color: #d6e4dc;
+  font-family: inherit;
+}
+.v123-gallery-screen.show { display: flex; }
+.v123-gallery-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #2E8B57;
+}
+.v123-gallery-title {
+  font-size: 22px;
+  color: #9be4ad;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.v123-gallery-close {
+  padding: 8px 18px;
+  background: rgba(46,139,87,0.15);
+  border: 1px solid #2E8B57;
+  color: #9be4ad;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+}
+.v123-gallery-close:hover { background: rgba(46,139,87,0.3); }
+.v123-gallery-section { margin-bottom: 28px; }
+.v123-gallery-section-title {
+  font-size: 14px;
+  color: #6ec8a3;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 10px;
+}
+.v123-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+.v123-gallery-item {
+  border: 1px solid #2E8B57;
+  border-radius: 6px;
+  padding: 8px;
+  background: rgba(46,139,87,0.05);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.v123-gallery-item:hover {
+  transform: translateY(-2px);
+  border-color: #9be4ad;
+}
+.v123-gallery-item img {
+  width: 100%;
+  height: 100px;
+  object-fit: contain;
+  background: #0a0e12;
+  border-radius: 4px;
+}
+.v123-gallery-item-label {
+  font-size: 11px;
+  color: #c8d6cf;
+  text-align: center;
+  word-break: keep-all;
+}
+
+/* 메인 메뉴 — 자산 갤러리 버튼 */
+.v123-gallery-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  background: rgba(46,139,87,0.12);
+  border: 1px solid #2E8B57;
+  color: #9be4ad;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  margin: 12px auto 0;
+  font-family: inherit;
+  align-self: center;
+}
+.v123-gallery-btn:hover {
+  background: rgba(46,139,87,0.25);
+  transform: translateY(-1px);
+}
+</style>
+
+<script id="patch-v123-assets-js">
+(function(){
+  'use strict';
+
+  var ASSETS = {
+    logo:   { small: 'assets/logo-small.png', title: 'assets/logo-title.jpg', banner: 'assets/logo-banner.jpg' },
+    char:   { yunsea: 'assets/char-yunsea.jpg', shadow: 'assets/char-shadow.png' },
+    icon:   {
+      attack:   'assets/icon-attack.png',
+      fear:     'assets/icon-fear.png',
+      shield:   'assets/icon-shield.jpg',
+      hp:       'assets/icon-hp.png',
+      confused: 'assets/icon-confused.png',
+      heart:    'assets/icon-heart.png',
+      gold:     'assets/icon-gold.png',
+      bag:      'assets/icon-bag.png',
+      circuit:  'assets/icon-circuit.png',
+      cards:    'assets/icon-cards.png',
+      settings: 'assets/icon-settings.png',
+      swords:   'assets/icon-swords.png',
+      cross:    'assets/icon-cross.png'
+    },
+    deco:   { wreath: 'assets/deco-wreath.png', touch: 'assets/deco-touch.png' },
+    mockup: { subway: 'assets/mockup-subway.jpg', battle: 'assets/mockup-battle.png' },
+    ref:    {
+      hadesMenu: 'assets/ref-hades-menu.png',
+      hadesChar: 'assets/ref-hades-char.png',
+      chart:     'assets/ref-chart.png',
+      game1:     'assets/ref-game1.png',
+      game2:     'assets/ref-game2.png',
+      game3:     'assets/ref-game3.png',
+      game4:     'assets/ref-game4.png'
+    }
+  };
+  window.TL_ASSETS = ASSETS;
+
+  function themeMenu() {
+    var bg = document.getElementById('menu-bg');
+    if (bg) bg.classList.add('v123-themed');
+    var lw = document.querySelector('.logo-wrap');
+    if (lw) lw.classList.add('v123-themed');
+    var cb = document.getElementById('char-select-bg');
+    if (cb) cb.classList.add('v123-themed');
+  }
+
+  function replaceHudIcons() {
+    var heart = document.getElementById('hud-heart');
+    if (heart && !heart.classList.contains('hud-heart-v123')) {
+      var t = (heart.textContent || '').trim();
+      if (t === '♥' || t === '♥') {
+        heart.innerHTML = '';
+        heart.classList.add('hud-heart-v123');
+      }
+    }
+    document.querySelectorAll('.hud-gold-icon').forEach(function(g){
+      if (g.classList.contains('hud-gold-icon-v123')) return;
+      var t = (g.textContent || '').trim();
+      if (t === '🪙' || t.charCodeAt(0) === 0xD83E) {
+        g.innerHTML = '';
+        g.classList.add('hud-gold-icon-v123');
+      }
+    });
+  }
+
+  function buildGallery() {
+    if (document.getElementById('v123-gallery-screen')) return;
+    var screen = document.createElement('div');
+    screen.id = 'v123-gallery-screen';
+    screen.className = 'v123-gallery-screen';
+    screen.innerHTML = [
+      '<div class="v123-gallery-header">',
+      '  <div class="v123-gallery-title">🎨 ASSET GALLERY — 게임 자산 카탈로그 (29장)</div>',
+      '  <button class="v123-gallery-close" id="v123-gallery-close">✕ 닫기</button>',
+      '</div>',
+      '<div class="v123-gallery-section"><div class="v123-gallery-section-title">🏷️ Logo / Title</div><div class="v123-gallery-grid" id="v123-grid-logo"></div></div>',
+      '<div class="v123-gallery-section"><div class="v123-gallery-section-title">👤 Character</div><div class="v123-gallery-grid" id="v123-grid-char"></div></div>',
+      '<div class="v123-gallery-section"><div class="v123-gallery-section-title">⚙️ UI Icons</div><div class="v123-gallery-grid" id="v123-grid-icon"></div></div>',
+      '<div class="v123-gallery-section"><div class="v123-gallery-section-title">🌸 Decoration</div><div class="v123-gallery-grid" id="v123-grid-deco"></div></div>',
+      '<div class="v123-gallery-section"><div class="v123-gallery-section-title">🖼️ Mockup</div><div class="v123-gallery-grid" id="v123-grid-mockup"></div></div>',
+      '<div class="v123-gallery-section"><div class="v123-gallery-section-title">📌 Reference (다른 게임 디자인 참조)</div><div class="v123-gallery-grid" id="v123-grid-ref"></div></div>'
+    ].join('\n');
+    document.body.appendChild(screen);
+
+    function fill(gridId, group) {
+      var grid = document.getElementById(gridId);
+      if (!grid) return;
+      Object.keys(group).forEach(function(key){
+        var src = group[key];
+        var item = document.createElement('div');
+        item.className = 'v123-gallery-item';
+        var img = document.createElement('img');
+        img.src = src;
+        img.alt = key;
+        img.loading = 'lazy';
+        img.onerror = function(){ this.style.opacity = '0.3'; this.alt = key + ' (load fail)'; };
+        var label = document.createElement('div');
+        label.className = 'v123-gallery-item-label';
+        label.textContent = key;
+        item.appendChild(img);
+        item.appendChild(label);
+        grid.appendChild(item);
+      });
+    }
+    fill('v123-grid-logo', ASSETS.logo);
+    fill('v123-grid-char', ASSETS.char);
+    fill('v123-grid-icon', ASSETS.icon);
+    fill('v123-grid-deco', ASSETS.deco);
+    fill('v123-grid-mockup', ASSETS.mockup);
+    fill('v123-grid-ref', ASSETS.ref);
+
+    document.getElementById('v123-gallery-close').onclick = function(){
+      screen.classList.remove('show');
+    };
+    screen.addEventListener('click', function(e){
+      if (e.target === screen) screen.classList.remove('show');
+    });
+  }
+
+  function openGallery() {
+    buildGallery();
+    document.getElementById('v123-gallery-screen').classList.add('show');
+  }
+  window.TL_openAssetGallery = openGallery;
+
+  function addGalleryBtn() {
+    if (document.getElementById('v123-gallery-btn')) return;
+    var menuContent = document.querySelector('#menu .menu-content');
+    if (!menuContent) return;
+    var btn = document.createElement('button');
+    btn.id = 'v123-gallery-btn';
+    btn.className = 'v123-gallery-btn';
+    btn.textContent = '🎨 자산 갤러리 (29장)';
+    btn.onclick = openGallery;
+    menuContent.appendChild(btn);
+  }
+
+  function init() {
+    themeMenu();
+    replaceHudIcons();
+    addGalleryBtn();
+    console.log('[V123-ASSETS] 외부 이미지 자산 적용 완료. window.TL_openAssetGallery() 또는 메인 메뉴 버튼으로 갤러리 열기 가능.');
+  }
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(init, 300);
+  } else {
+    document.addEventListener('DOMContentLoaded', function(){
+      setTimeout(init, 300);
+    });
+  }
+
+  // HUD 재렌더 대응 — 주기적으로 다시 적용
+  setInterval(function(){
+    try { replaceHudIcons(); } catch(_) {}
+  }, 1500);
 })();
 </script>
