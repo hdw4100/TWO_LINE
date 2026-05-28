@@ -2,7 +2,7 @@
  * 오프라인 작동 + 캐싱 (cache-first 전략)
  */
 
-const CACHE_NAME = 'two-line-v1';
+const CACHE_NAME = 'two-line-v121';
 const CACHED_FILES = [
   './',
   './index.html',

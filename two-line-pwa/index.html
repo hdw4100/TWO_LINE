@@ -39,7 +39,7 @@
 <!-- BUILD: v3.6.0-PHASE6 - PHASE2 + EOS + CODEX + STORY + RELATIONS + CUTSCENE + ENDINGS + LOOP_MEMORY + RUN_SUMMARY -->
 
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+<meta id="viewport-meta" name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -57067,4 +57067,78 @@ ic 대체 + hover stuck 방지');
     dispatchMouse('mousemove', document.body, e.touches[0]);
   }, { passive: true });
 
-  document.addEventListe
+  document.addEventListener('touchend', function(e){
+    if (!touchActiveCard) return;
+    var t = e.changedTouches[0];
+    // 손가락 떼는 위치의 element 찾아 mouseup dispatch
+    var dropTarget = document.elementFromPoint(t.clientX, t.clientY) || document.body;
+    dispatchMouse('mouseup', dropTarget, t);
+    touchActiveCard = null;
+  }, { passive: true });
+
+  document.addEventListener('touchcancel', function(e){
+    if (!touchActiveCard) return;
+    dispatchMouse('mouseup', document.body, e.changedTouches[0]);
+    touchActiveCard = null;
+  }, { passive: true });
+})();
+</script>
+lientX, t.clientY) || document.body;
+    dispatchMouse('mouseup', dropTarget, t);
+    touchActiveCard = null;
+  }, { passive: true });
+
+  document.addEventListener('touchcancel', function(e){
+    if (!touchActiveCard) return;
+    dispatchMouse('mouseup', document.body, e.changedTouches[0]);
+    touchActiveCard = null;
+  }, { passive: true });
+})();
+</script>
+
+<script id="patch-v121-viewport">
+(function(){
+  'use strict';
+  // 게임 본래 디자인: 약 1280~1920 가로
+  // 모바일 화면(~400px)에서는 viewport 자체를 1280으로 강제 → 자동 축소
+  var DESIGN_WIDTH_LANDSCAPE = 1280;
+  var DESIGN_WIDTH_PORTRAIT = 720;  // 세로 모드는 더 작게
+
+  function applyViewport(){
+    var meta = document.getElementById('viewport-meta');
+    if (!meta) return;
+    var screenW = window.screen.width;
+    var screenH = window.screen.height;
+    var isLandscape = (window.innerWidth > window.innerHeight) ||
+                       (window.matchMedia && window.matchMedia('(orientation: landscape)').matches);
+    var isMobileSize = (screenW < 900) || (window.innerWidth < 900);
+    if (!isMobileSize){
+      // 데스크탑/태블릿 — 기본 device-width 유지
+      meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover');
+      return;
+    }
+    // 모바일 — viewport 폭을 게임 디자인 폭으로 강제 (브라우저가 자동 축소)
+    var designW = isLandscape ? DESIGN_WIDTH_LANDSCAPE : DESIGN_WIDTH_PORTRAIT;
+    var content = 'width=' + designW + ', user-scalable=yes, viewport-fit=cover';
+    meta.setAttribute('content', content);
+  }
+  // 첫 실행
+  applyViewport();
+  // 회전 / 리사이즈 시 재계산
+  window.addEventListener('resize', applyViewport);
+  window.addEventListener('orientationchange', function(){
+    setTimeout(applyViewport, 200);
+  });
+
+  // body zoom 충돌 방지 — v118 zoom 해제
+  function clearZoomConflict(){
+    try {
+      document.body.style.zoom = '';
+      document.body.style.transform = '';
+      document.body.style.width = '';
+      document.body.style.minHeight = '';
+    } catch(_){}
+  }
+  setTimeout(clearZoomConflict, 100);
+})();
+</script>
