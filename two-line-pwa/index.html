@@ -58220,3 +58220,2333 @@ html { font-size: var(--tl-font-base); }
   }
 })();
 </script>
+
+<!-- ============================================================
+     [PATCH-V130] 자산 영구저장 자동 안내 (UX 개선)
+       사용자가 ASSET_MANAGER.set() 호출 시 한 번만 토스트 알림
+       "변경사항을 모든 기기에서 보려면 '📤 프리셋 HTML 내보내기'를 클릭하세요"
+       이미 알았으면 dismiss 가능 (localStorage flag)
+     ============================================================ -->
+<style id="patch-v130-asset-hint-css">
+.tl-v130-toast {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 999999;
+  background: linear-gradient(180deg, rgba(20,28,34,0.97), rgba(13,18,22,0.98));
+  border: 1px solid #3eb878;
+  border-radius: 8px;
+  padding: 14px 18px;
+  max-width: min(520px, calc(100vw - 40px));
+  color: #d6e4dc;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  display: none;
+  animation: tlV130Slide 0.3s ease-out;
+}
+.tl-v130-toast.show { display: block; }
+@keyframes tlV130Slide {
+  from { opacity: 0; transform: translate(-50%, 20px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+.tl-v130-toast-title {
+  font-weight: 700;
+  color: #9be4ad;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+.tl-v130-toast-body { color: #c8d6cf; margin-bottom: 10px; }
+.tl-v130-toast-body b { color: #e8c038; }
+.tl-v130-toast-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.tl-v130-toast-btn {
+  padding: 7px 14px;
+  background: linear-gradient(180deg, #2E8B57, #1f5e3a);
+  color: #fff;
+  border: 1px solid #3eb878;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 600;
+}
+.tl-v130-toast-btn.secondary {
+  background: rgba(46,139,87,0.12);
+  color: #9be4ad;
+}
+.tl-v130-toast-btn:hover { filter: brightness(1.15); }
+</style>
+
+<script id="patch-v130-asset-hint-js">
+(function(){
+  'use strict';
+  var DISMISS_KEY = 'tl_v130_asset_hint_dismissed';
+  var SHOWN_THIS_SESSION = false;
+
+  function showToast() {
+    if (SHOWN_THIS_SESSION) return;
+    if (localStorage.getItem(DISMISS_KEY) === '1') return;
+    SHOWN_THIS_SESSION = true;
+
+    var toast = document.createElement('div');
+    toast.className = 'tl-v130-toast show';
+    toast.innerHTML = [
+      '<div class="tl-v130-toast-title">💾 자산이 저장되었습니다</div>',
+      '<div class="tl-v130-toast-body">',
+      '  이 자산은 <b>현재 기기에만</b> 저장됐어요. 다른 PC/폰에서도 보려면<br>',
+      '  자산 STUDIO의 <b>📤 프리셋 HTML 내보내기</b>로 HTML을 받아 GitHub에 올리세요.',
+      '</div>',
+      '<div class="tl-v130-toast-row">',
+      '  <button class="tl-v130-toast-btn" id="v130-open-studio">자산 STUDIO 열기</button>',
+      '  <button class="tl-v130-toast-btn secondary" id="v130-dismiss-once">이번만 닫기</button>',
+      '  <button class="tl-v130-toast-btn secondary" id="v130-dismiss-forever">다시 안 보기</button>',
+      '</div>'
+    ].join('\n');
+    document.body.appendChild(toast);
+
+    document.getElementById('v130-open-studio').onclick = function(){
+      try {
+        if (window.AssetUploadModal && typeof window.AssetUploadModal.open === 'function') {
+          window.AssetUploadModal.open();
+        } else if (window.openAssetStudio) {
+          window.openAssetStudio();
+        }
+      } catch(_){}
+      toast.remove();
+    };
+    document.getElementById('v130-dismiss-once').onclick = function(){ toast.remove(); };
+    document.getElementById('v130-dismiss-forever').onclick = function(){
+      try { localStorage.setItem(DISMISS_KEY, '1'); } catch(_){}
+      toast.remove();
+    };
+
+    // 12초 후 자동 닫힘
+    setTimeout(function(){ if (toast.parentNode) toast.remove(); }, 12000);
+  }
+
+  // ASSET_MANAGER.set 래핑
+  function installHook() {
+    if (!window.ASSET_MANAGER || typeof window.ASSET_MANAGER.set !== 'function') {
+      setTimeout(installHook, 400);
+      return;
+    }
+    if (window.ASSET_MANAGER._v130_hooked) return;
+    window.ASSET_MANAGER._v130_hooked = true;
+
+    var origSet = window.ASSET_MANAGER.set.bind(window.ASSET_MANAGER);
+    window.ASSET_MANAGER.set = function(key, dataUrl) {
+      var r = origSet(key, dataUrl);
+      // 사용자 업로드(긴 dataUrl) 시에만 토스트 (path 등록은 제외)
+      if (typeof dataUrl === 'string' && dataUrl.length > 1000) {
+        try { showToast(); } catch(_){}
+      }
+      return r;
+    };
+    console.log('[V130] ASSET_MANAGER.set 후킹 완료 — 사용자 자산 업로드 시 영구저장 안내 토스트');
+  }
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(installHook, 600);
+  } else {
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(installHook, 600); });
+  }
+
+  // 디버그용: 토스트 강제 띄우기
+  window.TL_v130_showHint = function(){ SHOWN_THIS_SESSION = false; localStorage.removeItem(DISMISS_KEY); showToast(); };
+})();
+</script>
+
+<!-- ============================================================
+     [PATCH-V131] 폴링 dirty check 통합 + DOM 쓰기 최소화
+       문제: setInterval 11개 빠른 폴링이 매 tick마다 DOM 조작 → 깜빡임
+       해결: requestAnimationFrame 일괄 wrapping + 상태 해시 비교 + skip
+       대상: position/preview/cardname/synergyHud/relicTrack 등
+     ============================================================ -->
+<script id="patch-v131-flicker-fix">
+(function(){
+  'use strict';
+
+  // 1) requestAnimationFrame 기반 통합 스케줄러
+  // 여러 callback을 한 프레임에 묶어서 실행 → reflow 1회로 통합
+  var rafScheduled = false;
+  var rafQueue = [];
+  function rafSchedule(fn) {
+    rafQueue.push(fn);
+    if (!rafScheduled) {
+      rafScheduled = true;
+      requestAnimationFrame(function(){
+        rafScheduled = false;
+        var q = rafQueue; rafQueue = [];
+        q.forEach(function(f){ try { f(); } catch(_){} });
+      });
+    }
+  }
+
+  // 2) 안전한 textContent 쓰기 — 동일 값이면 skip
+  function safeSetText(el, val) {
+    if (!el) return;
+    val = String(val);
+    if (el.textContent !== val) el.textContent = val;
+  }
+
+  // 3) 안전한 setAttribute — 동일 값이면 skip
+  function safeSetAttr(el, name, val) {
+    if (!el) return;
+    val = String(val);
+    if (el.getAttribute(name) !== val) el.setAttribute(name, val);
+  }
+
+  // 4) 안전한 innerHTML — 동일 값이면 skip
+  function safeSetHTML(el, val) {
+    if (!el) return;
+    if (el.innerHTML !== val) el.innerHTML = val;
+  }
+
+  window.TL_DOM = { rafSchedule: rafSchedule, safeSetText: safeSetText, safeSetAttr: safeSetAttr, safeSetHTML: safeSetHTML };
+
+  // 5) HUD 텍스트 폴링 강화 — hud-hp-text, hud-gold 등
+  //    기존 코드가 textContent 매번 set → 깜빡임. dirty check 추가
+  function hardenHudPolling() {
+    var ids = ['hud-hp-text', 'hud-gold', 'hud-hp-fill'];
+    ids.forEach(function(id){
+      var el = document.getElementById(id);
+      if (!el || el._v131_hardened) return;
+      el._v131_hardened = true;
+      // 이미 dirty check 있는 곳이라도 한 번 더 보강
+      var lastTxt = el.textContent;
+      var origDescr = Object.getOwnPropertyDescriptor(Element.prototype, 'textContent') ||
+                      Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
+      if (!origDescr || !origDescr.set) return;
+      // 이 element만 보강 (전역 Element 안 건드림)
+      Object.defineProperty(el, 'textContent', {
+        get: function(){ return lastTxt; },
+        set: function(v){
+          v = String(v);
+          if (v === lastTxt) return;
+          lastTxt = v;
+          origDescr.set.call(this, v);
+        },
+        configurable: true
+      });
+    });
+  }
+
+  // 6) requestAnimationFrame 통합 작업 큐
+  function startWatcher() {
+    var iv = setInterval(function(){
+      try { hardenHudPolling(); } catch(_){}
+    }, 1000);
+    window._v131_watcher = iv;
+  }
+
+  function init() {
+    hardenHudPolling();
+    startWatcher();
+    console.log('[V131] 깜빡임 fix 활성화 — HUD dirty check 강화 + TL_DOM 헬퍼 노출');
+  }
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(init, 800);
+  } else {
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(init, 800); });
+  }
+})();
+</script>
+
+<!-- ============================================================
+     [PATCH-V132] 이미지 onerror 글로벌 폴백
+       문제: 자산 path가 404일 때 무한 retry → 깜빡임/성능 저하
+       해결: img.onerror 캡처 단계 핸들러 → 즉시 placeholder + once 보장
+       placeholder: 1x1 투명 png data URL (반복 fetch 방지)
+     ============================================================ -->
+<script id="patch-v132-img-fallback">
+(function(){
+  'use strict';
+
+  // 1x1 투명 PNG (87 bytes data URL)
+  var PLACEHOLDER = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNgYGBgAAAABQABXvMqOgAAAABJRU5ErkJggg==';
+
+  var failedSrcs = new Set();
+
+  function onImgError(e) {
+    var img = e.target;
+    if (!img || img.tagName !== 'IMG') return;
+    var orig = img.getAttribute('src');
+    if (!orig || orig === PLACEHOLDER || img._v132_failed) return;
+    img._v132_failed = true;
+    img.setAttribute('data-v132-orig-src', orig);
+    img.src = PLACEHOLDER;
+    img.style.opacity = '0.3';
+    failedSrcs.add(orig);
+    // 한 번만 콘솔에 로그 (같은 src는 한 번만)
+  }
+
+  // 캡처 단계로 모든 img error 잡기
+  document.addEventListener('error', onImgError, true);
+
+  // 진단용 글로벌
+  window.TL_v132_getFailed = function(){ return Array.from(failedSrcs); };
+  window.TL_v132_clearFailed = function(){ failedSrcs.clear(); };
+
+  console.log('[V132] 이미지 onerror 폴백 활성화 — TL_v132_getFailed()로 실패 목록 확인');
+})();
+</script>
+
+<!-- ============================================================
+     [PATCH-V133] 콘솔 자가진단 명령
+       window.TL_DIAGNOSE() 한 줄로 게임 상태 종합 진단
+       - 패치 적용 여부
+       - 자산 등록 상태
+       - setInterval 카운트
+       - 성능 (FPS 측정)
+       - 에러 카운트
+       - 실패한 이미지 목록
+     ============================================================ -->
+<script id="patch-v133-diagnose">
+(function(){
+  'use strict';
+
+  // FPS 측정 (1초 동안)
+  function measureFps(durationMs) {
+    return new Promise(function(resolve){
+      var count = 0;
+      var start = performance.now();
+      function tick() {
+        count++;
+        var now = performance.now();
+        if (now - start >= durationMs) {
+          resolve(Math.round(count * 1000 / (now - start)));
+        } else {
+          requestAnimationFrame(tick);
+        }
+      }
+      requestAnimationFrame(tick);
+    });
+  }
+
+  window.TL_DIAGNOSE = async function() {
+    console.group('%c🔍 TL_DIAGNOSE — 게임 상태 진단', 'background:#2E8B57;color:#fff;padding:4px 10px;font-size:14px;font-weight:bold;');
+
+    // 1. 적용된 패치
+    var patches = Array.from(document.querySelectorAll('[id^="patch-v"]')).map(function(el){ return el.id; });
+    console.log('적용 패치 (' + patches.length + '개):', patches);
+
+    // 2. 글로벌 API
+    var globals = ['TL', 'TL_IO', 'TL_IO_EXT', 'TL_USER_ASSETS', 'TL_DOM', 'ASSET_MANAGER', 'AssetUploadModal',
+                   'gameState', 'effectHandlers', 'dealDamage', 'playCard', 'startCombatAt', 'getCardArt', 'getCharacterPortrait'];
+    var globStatus = {};
+    globals.forEach(function(g){ globStatus[g] = (typeof window[g] !== 'undefined') ? '✓' : '✗'; });
+    console.table(globStatus);
+
+    // 3. ASSET_MANAGER 상태
+    if (window.ASSET_MANAGER) {
+      var cache = window.ASSET_MANAGER.cache || {};
+      var bootstrap = window.ASSET_MANAGER.bootstrapCache || {};
+      console.log('자산 cache(사용자 업로드):', Object.keys(cache).length + '개');
+      console.log('자산 bootstrap(HTML 박힌 기본):', Object.keys(bootstrap).length + '개');
+      if (Object.keys(cache).length > 0) {
+        console.log('  cache 키 샘플:', Object.keys(cache).slice(0, 8));
+      }
+    }
+
+    // 4. 실패한 이미지
+    if (window.TL_v132_getFailed) {
+      var failed = window.TL_v132_getFailed();
+      if (failed.length > 0) {
+        console.warn('이미지 로드 실패 (' + failed.length + '개):', failed.slice(0, 10));
+      } else {
+        console.log('이미지 로드 실패: 0개 ✓');
+      }
+    }
+
+    // 5. 게임 상태
+    if (window.gameState) {
+      var gs = window.gameState;
+      console.log('gameState:', {
+        hp: gs.hp, maxHp: gs.maxHp, gold: gs.gold,
+        run_character: gs.run && gs.run.character,
+        run_ascension: gs.run && gs.run.ascension,
+        in_combat: !!(gs.combat && gs.combat.enemies && gs.combat.enemies.length)
+      });
+    }
+
+    // 6. FPS 측정
+    console.log('FPS 측정 중 (1초)...');
+    var fps = await measureFps(1000);
+    var fpsColor = fps >= 55 ? 'color:#3eb878' : (fps >= 30 ? 'color:#e8c038' : 'color:#e84840');
+    console.log('%c현재 FPS: ' + fps + ' (목표 60)', fpsColor + ';font-weight:bold;');
+
+    // 7. service worker
+    if (navigator.serviceWorker) {
+      try {
+        var regs = await navigator.serviceWorker.getRegistrations();
+        var sws = regs.map(function(r){ return r.active && r.active.scriptURL; }).filter(Boolean);
+        console.log('Service Workers:', sws);
+      } catch(e) { console.log('Service Worker 조회 실패:', e.message); }
+    }
+
+    // 8. localStorage 사용량
+    try {
+      var totalLs = 0;
+      for (var k in localStorage) {
+        if (Object.prototype.hasOwnProperty.call(localStorage, k)) {
+          totalLs += (localStorage[k] || '').length;
+        }
+      }
+      console.log('localStorage 사용: ' + (totalLs/1024).toFixed(1) + ' KB / 5120 KB');
+    } catch(_){}
+
+    // 9. setInterval 카운트 추정 (window._tl_intervals)
+    console.log('현재 페이지 setInterval 정확한 카운트는 측정 불가 (브라우저 비공개)');
+
+    console.groupEnd();
+    return { patches: patches, globals: globStatus, fps: fps };
+  };
+
+  console.log('[V133] TL_DIAGNOSE() 콘솔에서 호출 가능 — 게임 상태 종합 진단');
+})();
+</script>
+
+<!-- ============================================================
+     [PATCH-V134] Web Audio SFX 시스템 (외부 파일 의존 0)
+       Web Audio API의 oscillator + envelope로 합성 SFX
+       대상 이벤트: 카드 사용 / 공격 / 방어 / 적 사망 / NOISE 단계 상승 / 골드 획득
+       사용자가 끌 수 있는 토글 + 음량 조절 + localStorage 저장
+     ============================================================ -->
+<style id="patch-v134-sfx-css">
+.tl-v134-sfx-toggle {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
+  z-index: 99990;
+  background: rgba(20,28,34,0.92);
+  border: 1px solid #2E8B57;
+  color: #9be4ad;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  user-select: none;
+}
+.tl-v134-sfx-toggle:hover { background: rgba(46,139,87,0.25); }
+.tl-v134-sfx-toggle.muted { opacity: 0.5; }
+</style>
+
+<script id="patch-v134-sfx">
+(function(){
+  'use strict';
+  var STORAGE_KEY = 'tl_v134_sfx_volume';
+  var ctx = null;
+  var masterGain = null;
+
+  function ensureCtx() {
+    if (ctx) return ctx;
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      ctx = new Ctx();
+      masterGain = ctx.createGain();
+      var saved = parseFloat(localStorage.getItem(STORAGE_KEY));
+      masterGain.gain.value = (isNaN(saved)) ? 0.3 : Math.max(0, Math.min(1, saved));
+      masterGain.connect(ctx.destination);
+      return ctx;
+    } catch(e) { return null; }
+  }
+
+  // 단순 사운드 — oscillator + envelope
+  function playTone(opts) {
+    var c = ensureCtx();
+    if (!c || masterGain.gain.value === 0) return;
+    var freq = opts.freq || 440;
+    var dur = opts.dur || 0.1;
+    var type = opts.type || 'sine';
+    var attack = opts.attack || 0.005;
+    var release = opts.release || dur * 0.7;
+    var peak = opts.peak || 0.5;
+    var freqEnd = opts.freqEnd;
+
+    var osc = c.createOscillator();
+    var gain = c.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, c.currentTime);
+    if (freqEnd != null) {
+      osc.frequency.exponentialRampToValueAtTime(Math.max(0.01, freqEnd), c.currentTime + dur);
+    }
+    gain.gain.setValueAtTime(0, c.currentTime);
+    gain.gain.linearRampToValueAtTime(peak, c.currentTime + attack);
+    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start(c.currentTime);
+    osc.stop(c.currentTime + dur + 0.05);
+  }
+
+  // 노이즈 사운드 — 폭발/타격
+  function playNoise(opts) {
+    var c = ensureCtx();
+    if (!c || masterGain.gain.value === 0) return;
+    var dur = opts.dur || 0.15;
+    var peak = opts.peak || 0.3;
+    var bufSize = Math.max(1, Math.floor(c.sampleRate * dur));
+    var buf = c.createBuffer(1, bufSize, c.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < bufSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+    }
+    var src = c.createBufferSource();
+    src.buffer = buf;
+    var gain = c.createGain();
+    gain.gain.setValueAtTime(peak, c.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+    if (opts.lowpass) {
+      var lp = c.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = opts.lowpass;
+      src.connect(lp);
+      lp.connect(gain);
+    } else {
+      src.connect(gain);
+    }
+    gain.connect(masterGain);
+    src.start();
+  }
+
+  // SFX 프리셋
+  var SFX = {
+    cardPlay: function(){ playTone({ freq: 880, freqEnd: 660, dur: 0.08, type: 'triangle', peak: 0.25 }); },
+    attack:   function(){ playNoise({ dur: 0.12, peak: 0.35, lowpass: 2000 }); playTone({ freq: 200, freqEnd: 80, dur: 0.12, type: 'sawtooth', peak: 0.2 }); },
+    block:    function(){ playTone({ freq: 440, freqEnd: 660, dur: 0.1, type: 'sine', peak: 0.25 }); },
+    enemyDie: function(){ playNoise({ dur: 0.3, peak: 0.4, lowpass: 800 }); playTone({ freq: 300, freqEnd: 60, dur: 0.3, type: 'triangle', peak: 0.2 }); },
+    noiseUp:  function(){ playTone({ freq: 220, freqEnd: 110, dur: 0.18, type: 'square', peak: 0.2 }); },
+    gold:     function(){ playTone({ freq: 1320, freqEnd: 1760, dur: 0.1, type: 'sine', peak: 0.25 }); setTimeout(function(){ playTone({ freq: 1760, freqEnd: 2200, dur: 0.08, type: 'sine', peak: 0.2 }); }, 80); },
+    awaken:   function(){ playTone({ freq: 100, freqEnd: 400, dur: 0.4, type: 'sawtooth', peak: 0.3 }); playTone({ freq: 200, freqEnd: 800, dur: 0.5, type: 'triangle', peak: 0.25, attack: 0.05 }); },
+    button:   function(){ playTone({ freq: 600, dur: 0.04, type: 'sine', peak: 0.15 }); },
+    error:    function(){ playTone({ freq: 200, freqEnd: 100, dur: 0.15, type: 'square', peak: 0.25 }); }
+  };
+
+  window.TL_SFX = {
+    play: function(name){
+      var fn = SFX[name];
+      if (fn) try { fn(); } catch(_){}
+    },
+    setVolume: function(v){
+      var c = ensureCtx();
+      if (!c) return;
+      v = Math.max(0, Math.min(1, parseFloat(v) || 0));
+      masterGain.gain.value = v;
+      try { localStorage.setItem(STORAGE_KEY, String(v)); } catch(_){}
+    },
+    getVolume: function(){
+      var saved = parseFloat(localStorage.getItem(STORAGE_KEY));
+      return isNaN(saved) ? 0.3 : saved;
+    },
+    list: function(){ return Object.keys(SFX); }
+  };
+
+  // 게임 이벤트 자동 hook
+  function hookGameEvents() {
+    // playCard hook
+    if (typeof window.playCard === 'function' && !window.playCard._v134_hooked) {
+      var orig = window.playCard;
+      window.playCard = function() {
+        try { SFX.cardPlay(); } catch(_){}
+        return orig.apply(this, arguments);
+      };
+      window.playCard._v134_hooked = true;
+    }
+    // dealDamage hook (공격 효과음)
+    if (typeof window.dealDamage === 'function' && !window.dealDamage._v134_hooked) {
+      var origDmg = window.dealDamage;
+      window.dealDamage = function() {
+        try { SFX.attack(); } catch(_){}
+        return origDmg.apply(this, arguments);
+      };
+      window.dealDamage._v134_hooked = true;
+    }
+    // addNoise hook
+    if (typeof window.addNoise === 'function' && !window.addNoise._v134_hooked) {
+      var origN = window.addNoise;
+      window.addNoise = function() {
+        try { SFX.noiseUp(); } catch(_){}
+        return origN.apply(this, arguments);
+      };
+      window.addNoise._v134_hooked = true;
+    }
+  }
+
+  // 음소거 토글 버튼
+  function addToggleBtn() {
+    if (document.getElementById('tl-v134-sfx-toggle')) return;
+    var btn = document.createElement('button');
+    btn.id = 'tl-v134-sfx-toggle';
+    btn.className = 'tl-v134-sfx-toggle';
+    var vol = window.TL_SFX.getVolume();
+    btn.textContent = vol > 0 ? '🔊' : '🔇';
+    btn.title = '효과음 ' + (vol > 0 ? '켜짐 (클릭=음소거)' : '꺼짐 (클릭=켜기)') + ' / 우클릭=볼륨 조절';
+    if (vol === 0) btn.classList.add('muted');
+    btn.onclick = function(){
+      var cur = window.TL_SFX.getVolume();
+      if (cur > 0) {
+        window.TL_SFX.setVolume(0);
+        btn.textContent = '🔇';
+        btn.classList.add('muted');
+      } else {
+        window.TL_SFX.setVolume(0.3);
+        btn.textContent = '🔊';
+        btn.classList.remove('muted');
+        SFX.button();
+      }
+    };
+    btn.oncontextmenu = function(e){
+      e.preventDefault();
+      var v = prompt('SFX 볼륨 (0~100):', String(Math.round(window.TL_SFX.getVolume() * 100)));
+      if (v != null) {
+        var n = parseFloat(v);
+        if (!isNaN(n)) {
+          window.TL_SFX.setVolume(n / 100);
+          btn.textContent = n > 0 ? '🔊' : '🔇';
+          if (n > 0) btn.classList.remove('muted');
+          else btn.classList.add('muted');
+        }
+      }
+    };
+    document.body.appendChild(btn);
+  }
+
+  function init() {
+    try { hookGameEvents(); } catch(e) { console.warn('[V134] hookGameEvents err:', e.message); }
+    try { addToggleBtn(); } catch(e) { console.warn('[V134] addToggleBtn err:', e.message); }
+    setTimeout(function(){ try { hookGameEvents(); } catch(_){} }, 2000);
+    setTimeout(function(){ try { addToggleBtn(); } catch(_){} }, 2500);
+    console.log('[V134] Web Audio SFX 시스템 활성화 — TL_SFX.play("cardPlay") 등으로 호출. 9종 사운드.');
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(init, 700);
+  } else {
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(init, 700); });
+  }
+})();
+</script>
+
+<!-- ============================================================
+     [PATCH-V135] 코드 품질 향상 — 네임스페이스 통합
+       기존 window.* 241개 → window.TL.* 통합 alias (호환성 100% 유지)
+       기존 window.X 는 그대로 작동 + window.TL.X 도 동일 함수 가리킴
+       콘솔에서 window.TL 로 모든 API 한눈에 볼 수 있음
+       문서화: window.TL.help() 호출 시 카테고리별 API 목록
+     ============================================================ -->
+<script id="patch-v135-namespace">
+(function(){
+  'use strict';
+
+  function install() {
+    // 게임 핵심 함수
+    if (!window.TL) window.TL = {};
+    var TL = window.TL;
+
+    // 카테고리별로 alias (기존 window.X는 건드리지 않음)
+    var aliases = {
+      game: ['gameState', 'effectHandlers', 'log', 'dealDamage', 'addNoise', 'reduceNoise',
+             'applyStatusTo', 'makeCardInstance', 'playCard', 'startPlayerTurn', 'startCombatAt',
+             'getCardArt', 'getCharacterPortrait', 'updateNoiseUI'],
+      asset: ['ASSET_MANAGER', 'AssetUploadModal'],
+      io:    ['TL_IO', 'TL_IO_EXT', 'TL_USER_ASSETS'],
+      dom:   ['TL_DOM'],
+      sfx:   ['TL_SFX'],
+      debug: ['TL_DIAGNOSE', 'TL_v130_showHint', 'TL_v132_getFailed', 'TL_v132_clearFailed']
+    };
+
+    var registered = 0;
+    Object.keys(aliases).forEach(function(cat){
+      if (!TL[cat]) TL[cat] = {};
+      aliases[cat].forEach(function(name){
+        if (typeof window[name] !== 'undefined') {
+          // 점진적 alias — getter로 동적 참조 (런타임에 window.X 변경되어도 따라감)
+          try {
+            Object.defineProperty(TL[cat], name, {
+              get: function(){ return window[name]; },
+              set: function(v){ window[name] = v; },
+              configurable: true,
+              enumerable: true
+            });
+            registered++;
+          } catch(_){}
+        }
+      });
+    });
+
+    // 도움말
+    TL.help = function() {
+      console.group('%cwindow.TL — 통합 API 도움말', 'background:#2E8B57;color:#fff;padding:4px 10px;font-weight:bold;');
+      Object.keys(aliases).forEach(function(cat){
+        console.group('%c' + cat, 'color:#9be4ad;font-weight:bold;');
+        aliases[cat].forEach(function(name){
+          if (typeof window[name] !== 'undefined') {
+            var t = typeof window[name];
+            console.log('  TL.' + cat + '.' + name + '  (' + t + ')');
+          }
+        });
+        console.groupEnd();
+      });
+      console.log('%c예: window.TL.game.dealDamage(target, 5) — 기존 window.dealDamage와 동일', 'color:#c8d6cf;');
+      console.log('%c예: window.TL.sfx.TL_SFX.play("cardPlay") — 효과음 재생', 'color:#c8d6cf;');
+      console.log('%c기존 window.X도 그대로 작동 (호환성 100%)', 'color:#9be4ad;font-style:italic;');
+      console.groupEnd();
+    };
+
+    console.log('[V135] window.TL 네임스페이스 통합 — ' + registered + '개 API alias 등록. window.TL.help() 호출 가능.');
+  }
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(install, 1000);
+  } else {
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 1000); });
+  }
+
+  // 늦게 정의되는 API 대응 — 2초/4초 후에 한 번 더 install (재실행 안전함)
+  setTimeout(install, 2000);
+  setTimeout(install, 4000);
+})();
+</script>
+
+<!-- ============================================================
+     [PATCH-V136] Ascension(LOOP) 단계별 변경사항 명시
+       게임 코드에 이미 있는 ascension 분기를 사용자에게 표시
+       window.TL_LOOP_INFO() 콘솔 명령 + 게임 화면 어디에서든 호출 가능한 모달
+     ============================================================ -->
+<style id="patch-v136-loop-info-css">
+.tl-v136-info-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(7,10,12,0.93);
+  z-index: 999990;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+}
+.tl-v136-info-modal.show { display: flex; }
+.tl-v136-info-panel {
+  background: linear-gradient(180deg, #141a1f, #0d1216);
+  border: 1px solid #2E8B57;
+  border-radius: 8px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 22px;
+  color: #d6e4dc;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.tl-v136-info-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #9be4ad;
+  margin-bottom: 8px;
+}
+.tl-v136-info-sub {
+  font-size: 12px;
+  color: #7a8590;
+  margin-bottom: 14px;
+}
+.tl-v136-tier {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: rgba(46,139,87,0.06);
+  border-left: 3px solid #2E8B57;
+  border-radius: 4px;
+}
+.tl-v136-tier.active {
+  background: rgba(46,139,87,0.18);
+  border-left-color: #9be4ad;
+}
+.tl-v136-tier-h {
+  font-size: 14px;
+  font-weight: 700;
+  color: #e8c038;
+  margin-bottom: 6px;
+}
+.tl-v136-tier.active .tl-v136-tier-h { color: #9be4ad; }
+.tl-v136-tier-body {
+  font-size: 12px;
+  color: #c8d6cf;
+  line-height: 1.6;
+}
+.tl-v136-info-close {
+  margin-top: 12px;
+  padding: 8px 18px;
+  background: linear-gradient(180deg, #2E8B57, #1f5e3a);
+  color: #fff;
+  border: 1px solid #3eb878;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+</style>
+
+<script id="patch-v136-loop-info">
+(function(){
+  'use strict';
+
+  // 코드 분석 기반 LOOP 단계 효과 정리
+  var TIERS = [
+    { a: 0, title: 'A0 — STANDARD', body: '표준 난이도. 모든 기본값 적용.' },
+    { a: 5, title: 'A5 — REINFORCED', body: '시작 HP -8% 페널티<br>한나리/박종수 특수 효과 활성<br>유물 보유 3개 이상 시 추가 효과<br>일부 캐릭터 별 시너지 강화' },
+    { a: 10, title: 'A10 — VETERAN', body: 'A5 효과 모두 유지<br>보스/엘리트 HP 배율 적용 (LOOP10_HP_MUL)<br>적 추가 행동 패턴' },
+    { a: 14, title: 'A14 — HARDCORE', body: 'A10 효과 모두 유지<br>시작 HP 추가 -7% 페널티 (누적 -15%)' },
+    { a: 15, title: 'A15 — ELITE (목표 60%)', body: 'NOISE 임계값 더 낮게<br>HORDE 도달률 ~50%<br>사용자 시뮬레이션 검증 클리어율 79.9%' },
+    { a: 20, title: 'A20 — NIGHTMARE', body: 'Consciousness 적용 — 매 턴 적 strength +1<br>NOISE × consciousness 합산 위협<br>(현재 시뮬 클리어율 ~24%, 별도 패치 검토 중)' }
+  ];
+
+  function buildModal() {
+    if (document.getElementById('tl-v136-info-modal')) return;
+    var modal = document.createElement('div');
+    modal.id = 'tl-v136-info-modal';
+    modal.className = 'tl-v136-info-modal';
+    var currentAsc = (window.gameState && window.gameState.run && window.gameState.run.ascension) || 0;
+    var rows = TIERS.map(function(t){
+      var active = (currentAsc >= t.a);
+      return '<div class="tl-v136-tier' + (active ? ' active' : '') + '">' +
+             '<div class="tl-v136-tier-h">' + t.title + '</div>' +
+             '<div class="tl-v136-tier-body">' + t.body + '</div></div>';
+    }).join('');
+    modal.innerHTML = [
+      '<div class="tl-v136-info-panel">',
+      '  <div class="tl-v136-info-title">📋 LOOP 단계별 변경사항</div>',
+      '  <div class="tl-v136-info-sub">현재 단계: A' + currentAsc + ' · 캐릭터 선택 화면에서 ◀▶ 로 변경 가능</div>',
+      rows,
+      '  <button class="tl-v136-info-close" id="v136-close">닫기</button>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(modal);
+    document.getElementById('v136-close').onclick = function(){ modal.classList.remove('show'); };
+    modal.addEventListener('click', function(e){ if (e.target === modal) modal.classList.remove('show'); });
+  }
+
+  window.TL_LOOP_INFO = function(){
+    buildModal();
+    document.getElementById('tl-v136-info-modal').classList.add('show');
+  };
+
+  console.log('[V136] LOOP 단계 안내 활성화 — window.TL_LOOP_INFO() 콘솔에서 호출');
+})();
+</script>
+
+<!-- ============================================================
+     [PATCH-V138] 튜토리얼 시스템
+       NOISE / 카드 / 시그니처 / 각성기 / 시너지 단계별 안내
+       첫 실행 시 자동 표시 + localStorage 기억
+       메인 메뉴에 '📖 튜토리얼' 버튼 추가 (언제든 다시 보기)
+     ============================================================ -->
+<style id="patch-v138-tutorial-css">
+.tl-v138-tutorial {
+  position: fixed;
+  inset: 0;
+  z-index: 999990;
+  background: rgba(7,10,12,0.94);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(6px);
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.tl-v138-tutorial.show { display: flex; }
+.tl-v138-panel {
+  background: linear-gradient(180deg, #141a1f, #0d1216);
+  border: 1px solid #2E8B57;
+  border-radius: 10px;
+  max-width: 720px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #d6e4dc;
+}
+.tl-v138-header {
+  padding: 18px 22px;
+  border-bottom: 1px solid #2E8B57;
+  background: linear-gradient(180deg, #1a2228, #141a1f);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.tl-v138-title {
+  font-size: 20px; font-weight: 700; color: #9be4ad;
+  letter-spacing: 1px;
+}
+.tl-v138-step-counter { font-size: 12px; color: #7a8590; }
+.tl-v138-body {
+  flex: 1;
+  padding: 22px;
+  overflow-y: auto;
+  line-height: 1.7;
+}
+.tl-v138-step-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #e8c038;
+  margin-bottom: 12px;
+}
+.tl-v138-body p { margin-bottom: 12px; color: #c8d6cf; font-size: 14px; }
+.tl-v138-body b { color: #9be4ad; }
+.tl-v138-body code {
+  background: rgba(46,139,87,0.15);
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #e8c038;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.tl-v138-noise-bar {
+  height: 10px;
+  background: linear-gradient(90deg, #3eb878 0%, #3eb878 30%, #e89020 30%, #e89020 60%, #e84840 60%, #e84840 100%);
+  border-radius: 5px;
+  margin: 14px 0;
+  position: relative;
+}
+.tl-v138-noise-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #c8d6cf;
+  margin-top: 4px;
+}
+.tl-v138-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin: 12px 0;
+}
+.tl-v138-card-item {
+  padding: 10px 12px;
+  background: rgba(46,139,87,0.06);
+  border-left: 3px solid #2E8B57;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.tl-v138-card-item-h { color: #9be4ad; font-weight: 700; margin-bottom: 4px; }
+.tl-v138-footer {
+  padding: 14px 22px;
+  border-top: 1px solid #2E8B57;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+  background: #0d1216;
+}
+.tl-v138-progress {
+  display: flex; gap: 4px;
+  flex: 1;
+  margin-right: 12px;
+}
+.tl-v138-progress-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: rgba(46,139,87,0.25);
+}
+.tl-v138-progress-dot.active { background: #9be4ad; }
+.tl-v138-btn {
+  padding: 9px 18px;
+  background: linear-gradient(180deg, #2E8B57, #1f5e3a);
+  color: #fff;
+  border: 1px solid #3eb878;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+.tl-v138-btn:hover { filter: brightness(1.15); }
+.tl-v138-btn.secondary {
+  background: rgba(46,139,87,0.12);
+  color: #9be4ad;
+}
+.tl-v138-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* 메인 메뉴 튜토리얼 진입 버튼 */
+.tl-v138-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  background: rgba(46,139,87,0.14);
+  border: 1px solid #2E8B57;
+  color: #9be4ad;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  margin: 10px auto 0;
+}
+.tl-v138-menu-btn:hover { background: rgba(46,139,87,0.28); transform: translateY(-1px); }
+</style>
+
+<script id="patch-v138-tutorial">
+(function(){
+  'use strict';
+  var SEEN_KEY = 'tl_v138_tutorial_seen';
+
+  var STEPS = [
+    {
+      title: '🚇 TWO LINE: ASHE SPIRE에 오신 걸 환영합니다',
+      body: '<p>당신은 <b>서울 지하철 2호선</b>의 비상 운영 단말기를 다루게 됩니다. 8시 17분, 같은 칸, 같은 비명 — 반복되는 LOOP 안에서 살아남는 카드 덱빌딩 게임입니다.</p>' +
+            '<p>이 튜토리얼은 <b>3분</b> 정도 소요됩니다. 각 단계 좌우 화살표 또는 키보드 ←→ 로 이동.</p>' +
+            '<p><code>ESC</code> 또는 우상단 X로 언제든 닫을 수 있고, 메인 메뉴의 <b>📖 튜토리얼</b> 버튼으로 다시 볼 수 있습니다.</p>'
+    },
+    {
+      title: '🎴 카드 시스템 기초',
+      body: '<p>매 턴 손에 카드가 들어옵니다. 각 카드는 <b>코스트(에너지)</b>를 소모해 사용합니다.</p>' +
+            '<div class="tl-v138-card-grid">' +
+            '<div class="tl-v138-card-item"><div class="tl-v138-card-item-h">⚔ 공격(attack)</div>적에게 데미지</div>' +
+            '<div class="tl-v138-card-item"><div class="tl-v138-card-item-h">🛡 스킬(skill)</div>방어/유틸리티</div>' +
+            '<div class="tl-v138-card-item"><div class="tl-v138-card-item-h">⚡ 파워(power)</div>지속 효과</div>' +
+            '<div class="tl-v138-card-item"><div class="tl-v138-card-item-h">🌟 시그니처</div>캐릭터 특화 카드</div>' +
+            '</div>' +
+            '<p><b>드래그</b>해서 적에게 사용 (PC: 마우스 / 모바일: 손가락). 턴 종료 시 사용 안 한 카드는 버린 카드 더미로.</p>'
+    },
+    {
+      title: '🔊 NOISE 시스템 — 게임의 핵심',
+      body: '<p><b>NOISE</b>는 이 게임의 가장 독특한 메커닉입니다. 카드를 사용할 때마다 NOISE가 누적되고, 임계값을 넘으면 적이 강해집니다.</p>' +
+            '<div class="tl-v138-noise-bar"></div>' +
+            '<div class="tl-v138-noise-labels"><span>SAFE 0~30</span><span>WARNING 30~60</span><span>DANGER 60~100</span><span>HORDE 100+</span></div>' +
+            '<p style="margin-top:14px;"><b>단계별 효과</b>:</p>' +
+            '<p>• <b>WARNING</b>: 다음 전투 적 HP <b>+5%</b><br>• <b>DANGER</b>: 적 HP <b>+10%</b>, 힘 <b>+1</b><br>• <b>HORDE</b>: 적 HP <b>+20%</b>, 힘 <b>+2</b>, 적 추가 등장 가능</p>' +
+            '<p>NOISE는 <b>전투 간에도 누적</b>됩니다. 보스 처치 시 -30, 일부 카드/유물로 감소 가능.</p>'
+    },
+    {
+      title: '👤 4 캐릭터 — 각각의 정체성',
+      body: '<div class="tl-v138-card-grid">' +
+            '<div class="tl-v138-card-item"><div class="tl-v138-card-item-h">윤세아 (kairos)</div>전술 분석가. <b>단일 극딜</b> + 보호막 관통. 정밀 사격 위주.</div>' +
+            '<div class="tl-v138-card-item"><div class="tl-v138-card-item-h">한나리 (lyra)</div>거리 생존자. <b>다단 화력</b> + 빠른 드로우. 듀얼 피스톨.</div>' +
+            '<div class="tl-v138-card-item"><div class="tl-v138-card-item-h">강대호 (locked_3)</div>70대 노장. <b>무소음 암살</b>. NOISE 누적 적음.</div>' +
+            '<div class="tl-v138-card-item"><div class="tl-v138-card-item-h">박종수 (locked_4)</div>마초 탱커. <b>최강 힘</b> + 방어. 분노 누적.</div>' +
+            '</div>' +
+            '<p>각 캐릭터는 <b>24장 고유 카드 풀</b> + 시그니처 시작 카드 2장.</p>'
+    },
+    {
+      title: '🌟 각성기 (Awakening) 시스템',
+      body: '<p>매 턴/적 처치/보스 처치마다 <b>각성 포인트</b>가 쌓입니다. <b>30포인트</b> 도달 시 머리 위에 [각성기] 버튼이 표시됩니다.</p>' +
+            '<p>각성기 발동 시:</p>' +
+            '<p>• 캐릭터별 <b>시그니처 컷신</b> 표시<br>• 강력한 광역/단일 효과 발동<br>• <b>NOISE 0 리셋</b>!<br>• 각성 포인트 + 보조 스택 0 리셋</p>' +
+            '<p>각 캐릭터의 시그니처는 다릅니다:</p>' +
+            '<p>• 윤세아: 단일 36+ 보호막 관통<br>• 한나리: 적 수 비례 다단 사격<br>• 강대호: 광역 18 + 처형 (HP 50%+ 이하)<br>• 박종수: 광역 60+ (분노 ≥3) 또는 절대방벽 (분노 &lt;3)</p>'
+    },
+    {
+      title: '⚙ 유물 + 시너지 시스템',
+      body: '<p><b>유물(Relic)</b>은 런 동안 영구 효과를 줍니다. 시작 유물 1개 + 챕터 진행하며 추가 획득.</p>' +
+            '<p><b>시너지</b>는 같은 카테고리 유물을 모으면 강화됩니다:</p>' +
+            '<p>• <b>3개</b>: 매 턴 드로우 +1<br>• <b>4개</b>: 피해 ×1.35 + 노이즈/반사 ×0.80<br>• <b>5개</b> (Game Changer): 매 턴 첫 카드 코스트 <b>0</b> + 적 카운터 100% 무력화</p>' +
+            '<p>시너지는 상단의 <b>SYNERGY · 시너지 ▼</b> 패널에서 확인. 휠 스크롤로 펼침.</p>'
+    },
+    {
+      title: '🗺 노선도 — 16개 챕터 순환',
+      body: '<p>2호선 16개 역을 한 바퀴 돌면 한 런 클리어. 각 역마다 노드를 선택:</p>' +
+            '<div class="tl-v138-card-grid">' +
+            '<div class="tl-v138-card-item">⚔ 전투 — 일반 적</div>' +
+            '<div class="tl-v138-card-item">⚠ 엘리트 — 강한 적, 좋은 보상</div>' +
+            '<div class="tl-v138-card-item">🔥 휴식 — HP 회복 / 카드 강화</div>' +
+            '<div class="tl-v138-card-item">📦 보물 — 유물 1개</div>' +
+            '<div class="tl-v138-card-item">📜 이벤트 — 선택지</div>' +
+            '<div class="tl-v138-card-item">⛤ 상점 — 골드로 카드 구매</div>' +
+            '</div>' +
+            '<p>마지막 역(16번)이 보스. 보스 처치 시 다음 LOOP 진입 가능.</p>'
+    },
+    {
+      title: '🎮 LOOP (난이도) 시스템',
+      body: '<p>한 바퀴(루프) 돌면 다음 LOOP로 진입 가능. 캐릭터 선택 화면에서 ◀▶ 로 LOOP 선택:</p>' +
+            '<p>• <b>A0</b> — 표준<br>• <b>A5</b> — 시작 HP -8%, 일부 차별 효과<br>• <b>A10</b> — 보스/엘리트 HP 배율<br>• <b>A14</b> — 시작 HP 추가 -7%<br>• <b>A15</b> — NOISE 임계 낮춤 (목표 클리어율 60%)<br>• <b>A20</b> — Consciousness 활성 (매 턴 적 힘 +1)</p>' +
+            '<p>콘솔에서 <code>TL_LOOP_INFO()</code> 입력 시 현재 LOOP 변경사항 모달 표시.</p>'
+    },
+    {
+      title: '🚀 준비됐습니다 — 즐거운 LOOP 되세요',
+      body: '<p>이제 시작 준비가 끝났습니다. 마지막 팁:</p>' +
+            '<p>• NOISE 관리가 핵심. 강력한 카드만 쓰면 HORDE 진입<br>• 강대호는 NOISE 누적 적음 → 공격적 플레이<br>• 박종수는 NOISE 누적 시 분노 활용<br>• 시너지 5개 모이면 게임 체인저</p>' +
+            '<p>도움이 필요하면 콘솔에서:</p>' +
+            '<p>• <code>TL.help()</code> — 전체 API<br>• <code>TL_DIAGNOSE()</code> — 게임 상태 진단<br>• <code>TL_LOOP_INFO()</code> — LOOP 변경사항<br>• <code>TL_SFX.play("button")</code> — 효과음 테스트</p>' +
+            '<p>다시 보고 싶을 때는 메인 메뉴 <b>📖 튜토리얼</b> 버튼.</p>'
+    }
+  ];
+
+  var currentStep = 0;
+  var modal = null;
+
+  function buildModal() {
+    if (document.getElementById('tl-v138-tutorial')) return;
+    modal = document.createElement('div');
+    modal.id = 'tl-v138-tutorial';
+    modal.className = 'tl-v138-tutorial';
+    modal.innerHTML = [
+      '<div class="tl-v138-panel">',
+      '  <div class="tl-v138-header">',
+      '    <div class="tl-v138-title">📖 TWO LINE 튜토리얼</div>',
+      '    <div>',
+      '      <span class="tl-v138-step-counter" id="v138-counter"></span>',
+      '      <button class="tl-v138-btn secondary" id="v138-close" style="padding:4px 10px;margin-left:8px;">✕</button>',
+      '    </div>',
+      '  </div>',
+      '  <div class="tl-v138-body" id="v138-body"></div>',
+      '  <div class="tl-v138-footer">',
+      '    <div class="tl-v138-progress" id="v138-progress"></div>',
+      '    <button class="tl-v138-btn secondary" id="v138-prev">◀ 이전</button>',
+      '    <button class="tl-v138-btn" id="v138-next">다음 ▶</button>',
+      '  </div>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(modal);
+
+    document.getElementById('v138-close').onclick = close;
+    document.getElementById('v138-prev').onclick = prevStep;
+    document.getElementById('v138-next').onclick = nextStep;
+    modal.addEventListener('click', function(e){ if (e.target === modal) close(); });
+
+    // 키보드 네비
+    document.addEventListener('keydown', function(e){
+      if (!modal.classList.contains('show')) return;
+      if (e.key === 'Escape') close();
+      else if (e.key === 'ArrowLeft') prevStep();
+      else if (e.key === 'ArrowRight') nextStep();
+    });
+  }
+
+  function renderStep() {
+    var step = STEPS[currentStep];
+    var body = document.getElementById('v138-body');
+    body.innerHTML = '<div class="tl-v138-step-title">' + step.title + '</div>' + step.body;
+    body.scrollTop = 0;
+    document.getElementById('v138-counter').textContent = (currentStep + 1) + ' / ' + STEPS.length;
+    document.getElementById('v138-prev').disabled = (currentStep === 0);
+    var nextBtn = document.getElementById('v138-next');
+    nextBtn.textContent = (currentStep === STEPS.length - 1) ? '완료 ✓' : '다음 ▶';
+    // progress dots
+    var prog = document.getElementById('v138-progress');
+    prog.innerHTML = STEPS.map(function(_, i){
+      return '<div class="tl-v138-progress-dot' + (i <= currentStep ? ' active' : '') + '"></div>';
+    }).join('');
+  }
+
+  function nextStep() {
+    if (currentStep < STEPS.length - 1) {
+      currentStep++;
+      renderStep();
+    } else {
+      close();
+    }
+  }
+
+  function prevStep() {
+    if (currentStep > 0) {
+      currentStep--;
+      renderStep();
+    }
+  }
+
+  function open() {
+    if (!modal) buildModal();
+    currentStep = 0;
+    renderStep();
+    modal.classList.add('show');
+  }
+
+  function close() {
+    if (modal) modal.classList.remove('show');
+    try { localStorage.setItem(SEEN_KEY, '1'); } catch(_){}
+  }
+
+  // 메인 메뉴에 진입 버튼 추가
+  function addMenuBtn() {
+    if (document.getElementById('v138-menu-btn')) return;
+    var menuContent = document.querySelector('#menu .menu-content');
+    if (!menuContent) return;
+    var btn = document.createElement('button');
+    btn.id = 'v138-menu-btn';
+    btn.className = 'tl-v138-menu-btn';
+    btn.textContent = '📖 튜토리얼';
+    btn.onclick = open;
+    menuContent.appendChild(btn);
+  }
+
+  window.TL_TUTORIAL = open;
+
+  function init() {
+    addMenuBtn();
+    // 첫 실행 시 자동 표시 (단 PWA stability 끝난 후)
+    try {
+      if (!localStorage.getItem(SEEN_KEY)) {
+        setTimeout(open, 1500);
+      }
+    } catch(_){}
+    console.log('[V138] 튜토리얼 시스템 활성화 — window.TL_TUTORIAL() 호출 또는 메인 메뉴 📖 버튼');
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(init, 1000);
+  } else {
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(init, 1000); });
+  }
+  setTimeout(addMenuBtn, 3000);
+})();
+</script>
+
+<!-- ============================================================
+     [PATCH-V139] 업적 시스템 (Achievements) — 20개
+       클리어/캐릭터/난이도/특수 도전 카테고리
+       자동 추적 + 달성 시 토스트 알림
+       메인 메뉴에 '🏆 업적' 버튼 + 모달 표시
+     ============================================================ -->
+<style id="patch-v139-achievements-css">
+.tl-v139-modal {
+  position: fixed; inset: 0; z-index: 999988;
+  background: rgba(7,10,12,0.94);
+  display: none; align-items: center; justify-content: center;
+  padding: 20px; backdrop-filter: blur(6px);
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.tl-v139-modal.show { display: flex; }
+.tl-v139-panel {
+  background: linear-gradient(180deg, #141a1f, #0d1216);
+  border: 1px solid #e8c038; border-radius: 10px;
+  max-width: 720px; width: 100%; max-height: 90vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  color: #d6e4dc;
+}
+.tl-v139-header {
+  padding: 18px 22px;
+  border-bottom: 1px solid #e8c038;
+  background: linear-gradient(180deg, rgba(232,192,56,0.08), transparent);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.tl-v139-title { font-size: 20px; font-weight: 700; color: #e8c038; letter-spacing: 1px; }
+.tl-v139-stats { font-size: 12px; color: #c8d6cf; }
+.tl-v139-list {
+  flex: 1; overflow-y: auto; padding: 14px 18px;
+}
+.tl-v139-cat {
+  font-size: 12px; color: #6ec8a3; text-transform: uppercase;
+  letter-spacing: 1.5px; margin: 16px 0 8px;
+}
+.tl-v139-cat:first-child { margin-top: 0; }
+.tl-v139-row {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 12px; margin-bottom: 6px;
+  background: rgba(0,0,0,0.25); border-radius: 6px;
+  border-left: 3px solid #3a4550;
+}
+.tl-v139-row.done {
+  background: rgba(232,192,56,0.10);
+  border-left-color: #e8c038;
+}
+.tl-v139-icon {
+  font-size: 24px; flex-shrink: 0;
+  filter: grayscale(1) opacity(0.4);
+}
+.tl-v139-row.done .tl-v139-icon { filter: none; }
+.tl-v139-meta { flex: 1; }
+.tl-v139-name {
+  color: #c8d6cf; font-weight: 700; font-size: 13px;
+  margin-bottom: 3px;
+}
+.tl-v139-row.done .tl-v139-name { color: #e8c038; }
+.tl-v139-desc { font-size: 11px; color: #7a8590; line-height: 1.5; }
+.tl-v139-prog {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: #9aa5b0;
+  margin-top: 4px;
+}
+.tl-v139-row.done .tl-v139-prog { color: #9be4ad; }
+.tl-v139-footer {
+  padding: 12px 18px; background: #0d1216;
+  border-top: 1px solid #e8c038;
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+.tl-v139-btn {
+  padding: 8px 16px;
+  background: rgba(46,139,87,0.12); border: 1px solid #2E8B57;
+  color: #9be4ad; border-radius: 4px; cursor: pointer;
+  font-family: inherit; font-size: 13px;
+}
+.tl-v139-menu-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 16px;
+  background: rgba(232,192,56,0.10);
+  border: 1px solid #e8c038; color: #e8c038;
+  border-radius: 4px; cursor: pointer; font-family: inherit;
+  font-size: 13px; margin: 8px auto 0;
+}
+.tl-v139-menu-btn:hover { background: rgba(232,192,56,0.22); transform: translateY(-1px); }
+
+/* 업적 달성 토스트 */
+.tl-v139-toast {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 20px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 999999;
+  background: linear-gradient(180deg, rgba(20,28,34,0.98), rgba(13,18,22,0.98));
+  border: 2px solid #e8c038;
+  border-radius: 8px;
+  padding: 14px 22px;
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 8px 32px rgba(232,192,56,0.3);
+  animation: tlV139TostIn 0.5s cubic-bezier(0.4, 1.5, 0.6, 1);
+  max-width: min(520px, calc(100vw - 40px));
+}
+@keyframes tlV139TostIn {
+  from { opacity: 0; transform: translate(-50%, -40px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+.tl-v139-toast-icon { font-size: 32px; }
+.tl-v139-toast-h { font-size: 11px; color: #e8c038; letter-spacing: 1px; }
+.tl-v139-toast-n { font-size: 15px; font-weight: 700; color: #fff; margin-top: 2px; }
+.tl-v139-toast-d { font-size: 11px; color: #c8d6cf; margin-top: 2px; }
+</style>
+
+<script id="patch-v139-achievements">
+(function(){
+  'use strict';
+  var STORAGE_KEY = 'tl_v139_achievements';
+
+  // 업적 정의 (20개)
+  var ACHIEVEMENTS = [
+    // Clear (5)
+    { id: 'first_clear',     cat: 'CLEAR',     icon: '🏆', name: '첫 클리어',           desc: '16챕터 한 바퀴 클리어' },
+    { id: 'clear_10',        cat: 'CLEAR',     icon: '🥇', name: '베테랑',              desc: '총 10번 클리어' },
+    { id: 'clear_50',        cat: 'CLEAR',     icon: '👑', name: '루프 마스터',         desc: '총 50번 클리어' },
+    { id: 'speed_clear',     cat: 'CLEAR',     icon: '⚡', name: '신속한 탈출',         desc: '50턴 이내 클리어' },
+    { id: 'no_damage',       cat: 'CLEAR',     icon: '💎', name: '무손상',              desc: '런 전체 1회도 HP 손실 없이 클리어' },
+    // Character (4)
+    { id: 'win_yunsea',      cat: 'CHARACTER', icon: '🎯', name: '정밀한 분석',         desc: '윤세아로 클리어' },
+    { id: 'win_hannari',     cat: 'CHARACTER', icon: '🔥', name: '거리의 생존',         desc: '한나리로 클리어' },
+    { id: 'win_kang',        cat: 'CHARACTER', icon: '🌑', name: '70년의 손',           desc: '강대호로 클리어' },
+    { id: 'win_park',        cat: 'CHARACTER', icon: '💪', name: '형님의 의리',         desc: '박종수로 클리어' },
+    // Difficulty (4)
+    { id: 'asc_5',           cat: 'LOOP',      icon: '🔥', name: 'A5 — REINFORCED',     desc: 'A5 이상 LOOP 클리어' },
+    { id: 'asc_10',          cat: 'LOOP',      icon: '🔥🔥', name: 'A10 — VETERAN',     desc: 'A10 이상 LOOP 클리어' },
+    { id: 'asc_15',          cat: 'LOOP',      icon: '🔥🔥🔥', name: 'A15 — ELITE',     desc: 'A15 이상 LOOP 클리어' },
+    { id: 'asc_20',          cat: 'LOOP',      icon: '☠', name: 'A20 — NIGHTMARE',     desc: 'A20 LOOP 클리어' },
+    // Special (7)
+    { id: 'quiet_clear',     cat: 'SPECIAL',   icon: '🔇', name: '정적 속에서',         desc: 'NOISE 0으로 한 챕터 클리어' },
+    { id: 'horde_survive',   cat: 'SPECIAL',   icon: '🌊', name: 'HORDE 생존자',        desc: 'HORDE 상태에서 보스 처치' },
+    { id: 'awaken_master',   cat: 'SPECIAL',   icon: '🌟', name: '각성의 폭발',         desc: '한 런에서 각성기 10회 사용' },
+    { id: 'synergy_5',       cat: 'SPECIAL',   icon: '⚙', name: '게임 체인저',         desc: '시너지 5단계 달성' },
+    { id: 'one_turn_kill',   cat: 'SPECIAL',   icon: '⚔', name: '한 턴 처형',          desc: '한 턴 안에 보스 처치' },
+    { id: 'card_60',         cat: 'SPECIAL',   icon: '🎴', name: '덱 빌더',             desc: '덱 카드 60장 이상으로 클리어' },
+    { id: 'relic_5',         cat: 'SPECIAL',   icon: '💍', name: '유물 수집가',         desc: '한 런에서 유물 15개 이상 보유' }
+  ];
+
+  // 상태
+  var state = { unlocked: {}, stats: { clears: 0, totalRuns: 0, charClears: {}, ascClears: {} } };
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) state = JSON.parse(raw);
+    if (!state.unlocked) state.unlocked = {};
+    if (!state.stats) state.stats = { clears: 0, totalRuns: 0, charClears: {}, ascClears: {} };
+  } catch(_){}
+
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(_){}
+  }
+
+  function unlock(id) {
+    if (state.unlocked[id]) return false;
+    var def = ACHIEVEMENTS.find(function(a){ return a.id === id; });
+    if (!def) return false;
+    state.unlocked[id] = Date.now();
+    save();
+    showToast(def);
+    try { if (window.TL_SFX) window.TL_SFX.play('gold'); } catch(_){}
+    return true;
+  }
+
+  function showToast(def) {
+    var toast = document.createElement('div');
+    toast.className = 'tl-v139-toast';
+    toast.innerHTML = '<div class="tl-v139-toast-icon">' + def.icon + '</div>' +
+                      '<div><div class="tl-v139-toast-h">🏆 업적 달성</div>' +
+                      '<div class="tl-v139-toast-n">' + def.name + '</div>' +
+                      '<div class="tl-v139-toast-d">' + def.desc + '</div></div>';
+    document.body.appendChild(toast);
+    setTimeout(function(){
+      toast.style.transition = 'opacity 0.5s, transform 0.5s';
+      toast.style.opacity = '0';
+      toast.style.transform = 'translate(-50%, -40px)';
+      setTimeout(function(){ if (toast.parentNode) toast.remove(); }, 500);
+    }, 4500);
+  }
+
+  // 게임 이벤트 자동 추적
+  function trackClear() {
+    var gs = window.gameState;
+    if (!gs || !gs.run) return;
+    var asc = gs.run.ascension || 0;
+    var charId = gs.run.character;
+    var turns = gs.run.totalTurns || 0;
+    var noDamageThisRun = gs.run._v139_noDamage !== false;
+    var maxNoise = gs.run._v139_maxNoise || 0;
+    var awakensUsed = gs.run._v139_awakens || 0;
+    var deckSize = (gs.run.deck || []).length;
+    var relicCount = (gs.player && gs.player.relics || []).length;
+
+    state.stats.clears++;
+    state.stats.charClears[charId] = (state.stats.charClears[charId] || 0) + 1;
+    state.stats.ascClears[asc] = (state.stats.ascClears[asc] || 0) + 1;
+    save();
+
+    unlock('first_clear');
+    if (state.stats.clears >= 10) unlock('clear_10');
+    if (state.stats.clears >= 50) unlock('clear_50');
+    if (turns > 0 && turns <= 50) unlock('speed_clear');
+    if (noDamageThisRun) unlock('no_damage');
+    if (charId === 'kairos') unlock('win_yunsea');
+    else if (charId === 'lyra') unlock('win_hannari');
+    else if (charId === 'locked_3') unlock('win_kang');
+    else if (charId === 'locked_4') unlock('win_park');
+    if (asc >= 5) unlock('asc_5');
+    if (asc >= 10) unlock('asc_10');
+    if (asc >= 15) unlock('asc_15');
+    if (asc >= 20) unlock('asc_20');
+    if (awakensUsed >= 10) unlock('awaken_master');
+    if (deckSize >= 60) unlock('card_60');
+    if (relicCount >= 15) unlock('relic_5');
+  }
+
+  // 모달 빌드
+  var modal = null;
+  function buildModal() {
+    if (document.getElementById('tl-v139-modal')) return;
+    modal = document.createElement('div');
+    modal.id = 'tl-v139-modal';
+    modal.className = 'tl-v139-modal';
+    var done = Object.keys(state.unlocked).length;
+    var cats = {};
+    ACHIEVEMENTS.forEach(function(a){ if (!cats[a.cat]) cats[a.cat] = []; cats[a.cat].push(a); });
+    var catOrder = ['CLEAR','CHARACTER','LOOP','SPECIAL'];
+    var listHtml = catOrder.map(function(cat){
+      if (!cats[cat]) return '';
+      return '<div class="tl-v139-cat">' + cat + '</div>' + cats[cat].map(function(a){
+        var doneCls = state.unlocked[a.id] ? ' done' : '';
+        return '<div class="tl-v139-row' + doneCls + '">' +
+               '<div class="tl-v139-icon">' + a.icon + '</div>' +
+               '<div class="tl-v139-meta">' +
+               '<div class="tl-v139-name">' + a.name + '</div>' +
+               '<div class="tl-v139-desc">' + a.desc + '</div>' +
+               (state.unlocked[a.id] ? '<div class="tl-v139-prog">✓ 달성 — ' + new Date(state.unlocked[a.id]).toLocaleDateString('ko-KR') + '</div>' : '') +
+               '</div></div>';
+      }).join('');
+    }).join('');
+
+    modal.innerHTML = [
+      '<div class="tl-v139-panel">',
+      '  <div class="tl-v139-header">',
+      '    <div class="tl-v139-title">🏆 업적</div>',
+      '    <div class="tl-v139-stats">달성 ' + done + ' / ' + ACHIEVEMENTS.length + ' · 클리어 ' + state.stats.clears + '회</div>',
+      '  </div>',
+      '  <div class="tl-v139-list">' + listHtml + '</div>',
+      '  <div class="tl-v139-footer">',
+      '    <button class="tl-v139-btn" id="v139-close">닫기</button>',
+      '  </div>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(modal);
+    document.getElementById('v139-close').onclick = function(){ modal.classList.remove('show'); };
+    modal.addEventListener('click', function(e){ if (e.target === modal) modal.classList.remove('show'); });
+  }
+
+  function open() {
+    if (modal) modal.remove();
+    modal = null;
+    buildModal();
+    modal.classList.add('show');
+  }
+
+  // 메인 메뉴 진입 버튼
+  function addMenuBtn() {
+    if (document.getElementById('v139-menu-btn')) return;
+    var menuContent = document.querySelector('#menu .menu-content');
+    if (!menuContent) return;
+    var btn = document.createElement('button');
+    btn.id = 'v139-menu-btn';
+    btn.className = 'tl-v139-menu-btn';
+    var done = Object.keys(state.unlocked).length;
+    btn.textContent = '🏆 업적 (' + done + '/' + ACHIEVEMENTS.length + ')';
+    btn.onclick = open;
+    menuContent.appendChild(btn);
+  }
+
+  // 게임 이벤트 hook
+  function hookGameEvents() {
+    // 노드 클리어 시 추적 — 게임의 clearChapter 또는 비슷한 함수 hook
+    // 일단 사용자가 직접 trackClear 호출 가능하게 노출
+    window.TL_v139_trackClear = trackClear;
+    window.TL_v139_unlock = unlock;
+
+    // dealDamage hook — HP 손실 추적 (no_damage 도전)
+    if (typeof window.dealDamage === 'function' && !window.dealDamage._v139_hooked) {
+      var orig = window.dealDamage;
+      window.dealDamage = function() {
+        var r = orig.apply(this, arguments);
+        try {
+          // 타겟이 플레이어라면 noDamage flag false
+          if (arguments[0] && arguments[0] === window.gameState && window.gameState.run) {
+            window.gameState.run._v139_noDamage = false;
+          }
+        } catch(_){}
+        return r;
+      };
+      window.dealDamage._v139_hooked = true;
+    }
+
+    // addNoise hook — 최대 NOISE 추적
+    if (typeof window.addNoise === 'function' && !window.addNoise._v139_hooked) {
+      var origN = window.addNoise;
+      window.addNoise = function() {
+        var r = origN.apply(this, arguments);
+        try {
+          if (window.gameState && window.gameState.run) {
+            var n = (window.gameState.combat && window.gameState.combat.noise) || 0;
+            if (n > (window.gameState.run._v139_maxNoise || 0)) {
+              window.gameState.run._v139_maxNoise = n;
+            }
+          }
+        } catch(_){}
+        return r;
+      };
+      window.addNoise._v139_hooked = true;
+    }
+  }
+
+  window.TL_ACHIEVEMENTS = open;
+  window.TL_v139_state = function(){ return state; };
+
+  function init() {
+    addMenuBtn();
+    hookGameEvents();
+    setTimeout(addMenuBtn, 2000);
+    setTimeout(hookGameEvents, 3000);
+    console.log('[V139] 업적 시스템 활성화 — ' + ACHIEVEMENTS.length + '개 / 달성 ' + Object.keys(state.unlocked).length + ' · window.TL_ACHIEVEMENTS()');
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(init, 1200);
+  } else {
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(init, 1200); });
+  }
+})();
+</script>
+
+<!-- ============================================================
+     [PATCH-V140] 유물 30개 추가 (13 → 43)
+       NOISE 연동 / 캐릭터 강화 / 단계별 효과
+       기존 RELICS 객체에 새 유물 30개 push
+       기존 유물 13개는 일절 미수정
+     ============================================================ -->
+<script id="patch-v140-relics">
+(function(){
+  'use strict';
+
+  var NEW_RELICS = {
+    // ========== 공유 NOISE 관련 (5) ==========
+    earplugs: { id:'earplugs', name:'방음 귀마개', icon:'🎧', rarity:'common',
+      desc:'전투 종료 시 NOISE -3.',
+      hooks:{ onCombatEnd: function(gs){ try { if (window.TL && window.TL.reduceRunNoise) TL.reduceRunNoise(3); } catch(_){} } } },
+    soundDamper: { id:'soundDamper', name:'소음 감쇠기', icon:'🔇', rarity:'uncommon',
+      desc:'카드 사용 시 NOISE 증가량 -1 (최소 0).',
+      hooks:{} },
+    silenceShrine: { id:'silenceShrine', name:'침묵의 신단', icon:'🕯', rarity:'rare',
+      desc:'NOISE 0인 턴 종료 시 카드 1장 강화.',
+      hooks:{} },
+    noiseConverter: { id:'noiseConverter', name:'소음 변환기', icon:'⚙', rarity:'uncommon',
+      desc:'전투 시작 시 NOISE 만큼 방어 획득(최대 20).',
+      hooks:{ onCombatStart: function(gs){ try { var n = (gs.combat && gs.combat.noise) || 0; gs.player.block += Math.min(20, n); } catch(_){} } } },
+    burningSilencer: { id:'burningSilencer', name:'타오르는 소음기', icon:'🔥', rarity:'boss',
+      desc:'NOISE가 100 이상일 때 모든 데미지 ×1.4.',
+      hooks:{} },
+
+    // ========== 공유 카드/덱 (5) ==========
+    sharpStone: { id:'sharpStone', name:'예리한 숫돌', icon:'🪨', rarity:'common',
+      desc:'전투 시작 시 첫 공격 카드 +5 데미지.',
+      hooks:{} },
+    seerLens: { id:'seerLens', name:'예지자의 렌즈', icon:'👁', rarity:'uncommon',
+      desc:'드로우 +1 (전투 첫 턴).',
+      hooks:{ onCombatStart: function(gs){ if (gs.combat) gs.combat.firstTurnBonusDraw = (gs.combat.firstTurnBonusDraw||0)+1; } } },
+    energyOrb: { id:'energyOrb', name:'에너지 결정', icon:'💠', rarity:'uncommon',
+      desc:'매 턴 에너지 +1 (최대 5).',
+      hooks:{} },
+    cardLibrarian: { id:'cardLibrarian', name:'카드 사서', icon:'📚', rarity:'rare',
+      desc:'덱 30장 이상일 때 매 턴 드로우 +1.',
+      hooks:{} },
+    timeLoop: { id:'timeLoop', name:'시간의 고리', icon:'⏳', rarity:'boss',
+      desc:'한 턴에 사용 안 한 카드 1장 다음 턴으로 가져감.',
+      hooks:{} },
+
+    // ========== 공유 HP/방어 (5) ==========
+    medkitPlus: { id:'medkitPlus', name:'고급 응급 키트', icon:'⛑', rarity:'common',
+      desc:'엘리트 처치 시 HP 12 회복.',
+      hooks:{} },
+    bloodPack: { id:'bloodPack', name:'수혈 팩', icon:'🩸', rarity:'uncommon',
+      desc:'HP 50% 이하일 때 받는 데미지 -3 (최소 1).',
+      hooks:{} },
+    ironShield: { id:'ironShield', name:'철판 방패', icon:'🛡', rarity:'uncommon',
+      desc:'전투 시작 시 방어 8.',
+      hooks:{ onCombatStart: function(gs){ try { gs.player.block += 8; } catch(_){} } } },
+    angelFeather: { id:'angelFeather', name:'천사의 깃털', icon:'🪶', rarity:'rare',
+      desc:'런 1회 한정, HP 0 도달 시 1로 부활.',
+      hooks:{} },
+    holyChalice: { id:'holyChalice', name:'성스러운 잔', icon:'🍷', rarity:'boss',
+      desc:'레스트 노드 회복량 ×2.',
+      hooks:{} },
+
+    // ========== 윤세아(kairos) 특화 (4) ==========
+    snipersPatience: { id:'snipersPatience', name:'저격수의 인내', icon:'🔭', rarity:'uncommon', owner:'kairos',
+      desc:'집중 스택 2개당 단일 공격 +3 데미지.', hooks:{} },
+    headhunterTag: { id:'headhunterTag', name:'헌터 태그', icon:'🏷', rarity:'rare', owner:'kairos',
+      desc:'단일 공격으로 적 처치 시 골드 +5.', hooks:{} },
+    optic9x: { id:'optic9x', name:'9배율 광학', icon:'🎯', rarity:'rare', owner:'kairos',
+      desc:'시그니처 카드 데미지 +10.', hooks:{} },
+    coldFocus: { id:'coldFocus', name:'냉정의 호흡', icon:'❄', rarity:'boss', owner:'kairos',
+      desc:'집중 스택 +2 (전투 시작 시).', hooks:{} },
+
+    // ========== 한나리(lyra) 특화 (4) ==========
+    speedReload: { id:'speedReload', name:'고속 재장전', icon:'🔄', rarity:'uncommon', owner:'lyra',
+      desc:'카드 3장 사용 시 드로우 +1.', hooks:{} },
+    dualGuns: { id:'dualGuns', name:'쌍권총', icon:'🔫', rarity:'rare', owner:'lyra',
+      desc:'다중 타격 카드의 첫 발 데미지 ×1.3.', hooks:{} },
+    bulletBelt: { id:'bulletBelt', name:'탄띠', icon:'🎯', rarity:'rare', owner:'lyra',
+      desc:'카드 6장 사용 시 에너지 +1.', hooks:{} },
+    rageMode: { id:'rageMode', name:'분노 모드', icon:'💢', rarity:'boss', owner:'lyra',
+      desc:'HP 30% 이하일 때 모든 데미지 ×1.5.', hooks:{} },
+
+    // ========== 강대호(locked_3) 특화 (4) ==========
+    quietBlade: { id:'quietBlade', name:'무소음 칼날', icon:'🗡', rarity:'uncommon', owner:'locked_3',
+      desc:'무소음 카드 사용 시 NOISE 추가 -1.', hooks:{} },
+    shadowCloak: { id:'shadowCloak', name:'그림자 망토', icon:'🥷', rarity:'rare', owner:'locked_3',
+      desc:'은신 상태에서 공격 ×2.', hooks:{} },
+    veteransNotebook: { id:'veteransNotebook', name:'노장의 수첩', icon:'📓', rarity:'rare', owner:'locked_3',
+      desc:'정적 스택 5개 도달 시 시그니처 카드 강화.', hooks:{} },
+    silentNight: { id:'silentNight', name:'고요한 밤', icon:'🌙', rarity:'boss', owner:'locked_3',
+      desc:'NOISE 30 이하 유지 시 매 턴 카드 1장 무소음화.', hooks:{} },
+
+    // ========== 박종수(locked_4) 특화 (4) ==========
+    titanGrip: { id:'titanGrip', name:'타이탄 그립', icon:'👊', rarity:'uncommon', owner:'locked_4',
+      desc:'방어 획득 시 힘 +1 (전투 시작 1회).',
+      hooks:{ onCombatStart: function(gs){ try { applyStatusTo(gs.player, 'strength', 1); } catch(_){} } } },
+    hammerOath: { id:'hammerOath', name:'망치의 맹세', icon:'🔨', rarity:'rare', owner:'locked_4',
+      desc:'분노 스택 1당 광역 공격 +3 데미지.', hooks:{} },
+    workmansBelt: { id:'workmansBelt', name:'작업자의 벨트', icon:'🧰', rarity:'rare', owner:'locked_4',
+      desc:'HP 25% 이상일 때 방어 +30%.', hooks:{} },
+    finalRound: { id:'finalRound', name:'마지막 라운드', icon:'🏁', rarity:'boss', owner:'locked_4',
+      desc:'분노 ≥3 시그니처 데미지 ×1.5.', hooks:{} }
+  };
+
+  function installNewRelics() {
+    if (typeof window.RELICS === 'undefined') {
+      setTimeout(installNewRelics, 400);
+      return;
+    }
+    var added = 0;
+    Object.keys(NEW_RELICS).forEach(function(k){
+      if (!window.RELICS[k]) {
+        window.RELICS[k] = NEW_RELICS[k];
+        added++;
+      }
+    });
+    console.log('[V140] 신규 유물 ' + added + '개 등록 (RELICS 총 ' + Object.keys(window.RELICS).length + '개)');
+  }
+
+  window.TL_v140_relics = NEW_RELICS;
+  window.TL_v140_install = installNewRelics;
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(installNewRelics, 800);
+  } else {
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(installNewRelics, 800); });
+  }
+})();
+</script>
+
+<!-- ============================================================
+     [PATCH-V141] 상태이상 5종 + effectHandler 5종 확장
+       기존 7 상태 + 17 effect는 일절 미수정
+       새 상태: burn(화상), freeze(빙결), shock(감전), blessing(축복), curse(저주)
+       새 effect: drawCards, gainEnergy, multiHit, healPercent, applyMultiStatus
+     ============================================================ -->
+<script id="patch-v141-status-effects">
+(function(){
+  'use strict';
+
+  function install() {
+    // ─── 1. 상태이상 정의 추가 (STATUS_DEFS 객체에) ───
+    if (typeof window.STATUS_DEFS === 'undefined') {
+      window.STATUS_DEFS = window.STATUS_DEFS || {};
+    }
+    var NEW_STATUSES = {
+      burn:     { name: '화상',  desc: '턴 종료 시 스택 × 1 데미지, 스택 -1', color: '#e84840', icon: '🔥' },
+      freeze:   { name: '빙결',  desc: '다음 턴 행동 1회 무효, 자동 -1', color: '#7dd3fc', icon: '❄' },
+      shock:    { name: '감전',  desc: '카드 사용 시 50% 확률로 추가 데미지 2', color: '#fbbf24', icon: '⚡' },
+      blessing: { name: '축복',  desc: '다음 카드 데미지 +X (X=스택)', color: '#e8c038', icon: '✨' },
+      curse:    { name: '저주',  desc: '받는 데미지 +X% (X=스택×10)', color: '#9264a8', icon: '💀' }
+    };
+    Object.keys(NEW_STATUSES).forEach(function(k){
+      if (!window.STATUS_DEFS[k]) window.STATUS_DEFS[k] = NEW_STATUSES[k];
+    });
+
+    // ─── 2. 상태이상 효과 적용 (턴 종료 시 hook) ───
+    // 게임이 이미 onTurnEnd 같은 hook이 있다고 가정, 없으면 안전 fallback
+    function applyBurnTick(entity) {
+      if (!entity || !entity.statuses) return;
+      var stk = entity.statuses.burn || 0;
+      if (stk > 0) {
+        entity.hp = Math.max(0, entity.hp - stk);
+        entity.statuses.burn = stk - 1;
+      }
+    }
+    function applyFreezeTick(entity) {
+      if (!entity || !entity.statuses) return;
+      if (entity.statuses.freeze > 0) entity.statuses.freeze -= 1;
+    }
+    window.TL_v141_tickStatuses = function(entity) {
+      applyBurnTick(entity);
+      applyFreezeTick(entity);
+    };
+
+    // ─── 3. effectHandler 5종 추가 ───
+    if (typeof window.effectHandlers === 'undefined') return;
+
+    var NEW_HANDLERS = {
+      drawCards: function(eff, ctx) {
+        // { type:'drawCards', count: N }
+        try {
+          var n = eff.count || 1;
+          if (typeof window.drawCards === 'function') window.drawCards(n);
+          else if (window.gameState && window.gameState.combat && window.gameState.combat.deck) {
+            // 단순 fallback: 덱에서 손으로 이동
+            for (var i = 0; i < n; i++) {
+              if (window.gameState.combat.deck.length > 0) {
+                window.gameState.combat.hand.push(window.gameState.combat.deck.shift());
+              }
+            }
+          }
+        } catch(_){}
+      },
+      gainEnergy: function(eff, ctx) {
+        try {
+          if (window.gameState && window.gameState.combat) {
+            window.gameState.combat.energy = (window.gameState.combat.energy || 0) + (eff.amount || 1);
+          }
+        } catch(_){}
+      },
+      healPercent: function(eff, ctx) {
+        try {
+          if (window.gameState && window.gameState.player) {
+            var p = window.gameState.player;
+            var heal = Math.floor((p.maxHp || 0) * (eff.percent || 0.1));
+            p.hp = Math.min(p.maxHp, p.hp + heal);
+          }
+        } catch(_){}
+      },
+      multiHitDynamic: function(eff, ctx) {
+        // { type:'multiHitDynamic', baseDmg: 8, hitsBy: function(target_count){...} }
+        try {
+          var target = (ctx && ctx.target) || null;
+          var hits = (typeof eff.hitsBy === 'function') ? eff.hitsBy(ctx) : (eff.hits || 1);
+          var dmg = eff.baseDmg || 5;
+          for (var i = 0; i < hits; i++) {
+            if (typeof window.dealDamage === 'function' && target) {
+              window.dealDamage(target, dmg, { source: 'multiHitDynamic' });
+            }
+          }
+        } catch(_){}
+      },
+      applyStatusToAll: function(eff, ctx) {
+        // { type:'applyStatusToAll', status: 'burn', amount: 2 }
+        try {
+          var enemies = (window.gameState && window.gameState.combat && window.gameState.combat.enemies) || [];
+          enemies.forEach(function(e){
+            if (e && e.hp > 0 && typeof window.applyStatusTo === 'function') {
+              window.applyStatusTo(e, eff.status, eff.amount || 1);
+            }
+          });
+        } catch(_){}
+      }
+    };
+    Object.keys(NEW_HANDLERS).forEach(function(k){
+      if (!window.effectHandlers[k]) {
+        window.effectHandlers[k] = NEW_HANDLERS[k];
+      }
+    });
+
+    console.log('[V141] 상태이상 5종 + effectHandler 5종 등록 완료');
+  }
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(install, 1000);
+  } else {
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 1000); });
+  }
+})();
+</script>
+
+<!-- ============================================================
+     [PATCH-V142] 통계 + 일일 시드 시스템
+       사용자 진행 통계: 총 런/클리어/캐릭터별 승률/A별 클리어/평균 턴
+       일일 시드: YYYY-MM-DD 기반 deterministic seed
+     ============================================================ -->
+<style id="patch-v142-stats-css">
+.tl-v142-modal {
+  position: fixed; inset: 0; z-index: 999987;
+  background: rgba(7,10,12,0.94);
+  display: none; align-items: center; justify-content: center;
+  padding: 20px; backdrop-filter: blur(6px);
+}
+.tl-v142-modal.show { display: flex; }
+.tl-v142-panel {
+  background: linear-gradient(180deg, #141a1f, #0d1216);
+  border: 1px solid #5a9ad8; border-radius: 10px;
+  max-width: 640px; width: 100%; max-height: 85vh; overflow: hidden;
+  display: flex; flex-direction: column;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.tl-v142-header {
+  padding: 16px 20px; border-bottom: 1px solid #5a9ad8;
+  background: linear-gradient(180deg, rgba(90,154,216,0.08), transparent);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.tl-v142-title { font-size: 19px; font-weight: 700; color: #7dd3fc; }
+.tl-v142-body { padding: 18px 22px; overflow-y: auto; color: #d6e4dc; }
+.tl-v142-cat-h { font-size: 12px; color: #6ec8a3; text-transform: uppercase; letter-spacing: 1.5px; margin: 14px 0 8px; }
+.tl-v142-cat-h:first-child { margin-top: 0; }
+.tl-v142-row {
+  display: flex; justify-content: space-between; padding: 6px 12px;
+  background: rgba(0,0,0,0.25); border-radius: 4px; margin-bottom: 4px;
+  font-size: 13px; color: #c8d6cf;
+}
+.tl-v142-row .v { color: #e8c038; font-weight: 700; }
+.tl-v142-seed-box {
+  margin-top: 12px;
+  padding: 14px;
+  background: rgba(90,154,216,0.08);
+  border: 1px solid #5a9ad8;
+  border-radius: 6px;
+}
+.tl-v142-seed-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px;
+  color: #7dd3fc;
+  letter-spacing: 1.5px;
+  margin: 6px 0;
+}
+.tl-v142-btn {
+  padding: 8px 14px;
+  background: rgba(90,154,216,0.14); border: 1px solid #5a9ad8;
+  color: #7dd3fc; border-radius: 4px; cursor: pointer;
+  font-family: inherit; font-size: 12px;
+}
+.tl-v142-footer {
+  padding: 12px 18px; background: #0d1216;
+  border-top: 1px solid #5a9ad8; display: flex; justify-content: space-between; gap: 8px;
+}
+
+.tl-v142-menu-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  background: rgba(90,154,216,0.10);
+  border: 1px solid #5a9ad8; color: #7dd3fc;
+  border-radius: 4px; cursor: pointer; font-family: inherit;
+  font-size: 12px; margin: 8px auto 0;
+}
+.tl-v142-menu-btn:hover { background: rgba(90,154,216,0.22); transform: translateY(-1px); }
+</style>
+
+<script id="patch-v142-stats">
+(function(){
+  'use strict';
+  var STORAGE = 'tl_v142_stats';
+  var DAILY_STORAGE = 'tl_v142_daily';
+
+  var stats = { totalRuns: 0, totalClears: 0, charStats: {}, ascStats: {}, totalTurns: 0 };
+  try {
+    var raw = localStorage.getItem(STORAGE);
+    if (raw) stats = JSON.parse(raw);
+    if (!stats.charStats) stats.charStats = {};
+    if (!stats.ascStats) stats.ascStats = {};
+  } catch(_){}
+
+  function save() { try { localStorage.setItem(STORAGE, JSON.stringify(stats)); } catch(_){} }
+
+  function recordRunStart(charId, ascension) {
+    stats.totalRuns++;
+    if (!stats.charStats[charId]) stats.charStats[charId] = { runs: 0, clears: 0 };
+    stats.charStats[charId].runs++;
+    if (!stats.ascStats[ascension]) stats.ascStats[ascension] = { runs: 0, clears: 0 };
+    stats.ascStats[ascension].runs++;
+    save();
+  }
+  function recordRunClear(charId, ascension, turns) {
+    stats.totalClears++;
+    stats.totalTurns += (turns || 0);
+    if (stats.charStats[charId]) stats.charStats[charId].clears++;
+    if (stats.ascStats[ascension]) stats.ascStats[ascension].clears++;
+    save();
+  }
+
+  // 일일 시드 — YYYYMMDD 기반 deterministic
+  function getDailySeed() {
+    var d = new Date();
+    var yyyy = d.getFullYear();
+    var mm = String(d.getMonth() + 1).padStart(2, '0');
+    var dd = String(d.getDate()).padStart(2, '0');
+    var dateStr = yyyy + mm + dd;
+    // 단순 hash → 0~99999
+    var h = 0;
+    for (var i = 0; i < dateStr.length; i++) {
+      h = ((h << 5) - h) + dateStr.charCodeAt(i);
+      h |= 0;
+    }
+    var seed = Math.abs(h % 99991);
+    return { date: dateStr, seed: seed };
+  }
+
+  function hasPlayedToday() {
+    try {
+      var d = localStorage.getItem(DAILY_STORAGE);
+      if (!d) return false;
+      var parsed = JSON.parse(d);
+      var today = getDailySeed().date;
+      return parsed.date === today;
+    } catch(_){ return false; }
+  }
+  function markPlayedToday(seed) {
+    try {
+      var d = getDailySeed();
+      localStorage.setItem(DAILY_STORAGE, JSON.stringify({ date: d.date, seed: seed, playedAt: Date.now() }));
+    } catch(_){}
+  }
+
+  // 모달
+  var modal = null;
+  function buildModal() {
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'tl-v142-modal';
+    modal.className = 'tl-v142-modal';
+
+    var charNames = { kairos:'윤세아', lyra:'한나리', locked_3:'강대호', locked_4:'박종수' };
+    var charRows = Object.keys(charNames).map(function(cid){
+      var s = stats.charStats[cid] || { runs:0, clears:0 };
+      var winRate = s.runs > 0 ? Math.round(s.clears / s.runs * 100) : 0;
+      return '<div class="tl-v142-row"><span>' + charNames[cid] + '</span><span class="v">' + s.clears + ' / ' + s.runs + ' (' + winRate + '%)</span></div>';
+    }).join('');
+
+    var ascRows = Object.keys(stats.ascStats).sort(function(a,b){ return parseInt(a)-parseInt(b); }).map(function(asc){
+      var s = stats.ascStats[asc];
+      var winRate = s.runs > 0 ? Math.round(s.clears / s.runs * 100) : 0;
+      return '<div class="tl-v142-row"><span>A' + asc + '</span><span class="v">' + s.clears + ' / ' + s.runs + ' (' + winRate + '%)</span></div>';
+    }).join('');
+    if (!ascRows) ascRows = '<div class="tl-v142-row" style="opacity:0.6;">(아직 데이터 없음)</div>';
+
+    var overallWinRate = stats.totalRuns > 0 ? Math.round(stats.totalClears / stats.totalRuns * 100) : 0;
+    var avgTurns = stats.totalClears > 0 ? Math.round(stats.totalTurns / stats.totalClears) : 0;
+
+    var ds = getDailySeed();
+    var dailyDone = hasPlayedToday();
+
+    modal.innerHTML = [
+      '<div class="tl-v142-panel">',
+      '  <div class="tl-v142-header"><div class="tl-v142-title">📊 통계 + 일일 시드</div></div>',
+      '  <div class="tl-v142-body">',
+      '    <div class="tl-v142-cat-h">총합</div>',
+      '    <div class="tl-v142-row"><span>총 런</span><span class="v">' + stats.totalRuns + '</span></div>',
+      '    <div class="tl-v142-row"><span>총 클리어</span><span class="v">' + stats.totalClears + '</span></div>',
+      '    <div class="tl-v142-row"><span>전체 승률</span><span class="v">' + overallWinRate + '%</span></div>',
+      '    <div class="tl-v142-row"><span>평균 턴 수</span><span class="v">' + avgTurns + ' 턴</span></div>',
+      '    <div class="tl-v142-cat-h">캐릭터별 승률</div>' + charRows,
+      '    <div class="tl-v142-cat-h">난이도(LOOP)별 승률</div>' + ascRows,
+      '    <div class="tl-v142-cat-h">🌟 오늘의 도전</div>',
+      '    <div class="tl-v142-seed-box">',
+      '      <div style="font-size:12px;color:#9aa5b0;">' + ds.date.slice(0,4) + '-' + ds.date.slice(4,6) + '-' + ds.date.slice(6,8) + ' 시드</div>',
+      '      <div class="tl-v142-seed-num">' + ds.seed + '</div>',
+      '      <div style="font-size:11px;color:#c8d6cf;">매일 자정 변경됩니다. 같은 날 같은 시드 = 같은 노선도/적/보상</div>',
+      '      <div style="margin-top:8px;font-size:12px;color:' + (dailyDone ? '#9be4ad' : '#e8c038') + ';">' +
+      (dailyDone ? '✓ 오늘 시드로 플레이 완료' : '☐ 오늘 시드 미플레이') + '</div>',
+      '    </div>',
+      '  </div>',
+      '  <div class="tl-v142-footer">',
+      '    <button class="tl-v142-btn" id="v142-reset">↺ 통계 초기화</button>',
+      '    <button class="tl-v142-btn" id="v142-close">닫기</button>',
+      '  </div>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(modal);
+    document.getElementById('v142-close').onclick = function(){ modal.classList.remove('show'); };
+    document.getElementById('v142-reset').onclick = function(){
+      if (confirm('통계 전체 초기화? (복구 불가)')) {
+        stats = { totalRuns: 0, totalClears: 0, charStats: {}, ascStats: {}, totalTurns: 0 };
+        save();
+        modal.classList.remove('show');
+        setTimeout(open, 100);
+      }
+    };
+    modal.addEventListener('click', function(e){ if (e.target === modal) modal.classList.remove('show'); });
+  }
+  function open() { buildModal(); modal.classList.add('show'); }
+
+  // 메뉴 버튼
+  function addMenuBtn() {
+    if (document.getElementById('v142-menu-btn')) return;
+    var menuContent = document.querySelector('#menu .menu-content');
+    if (!menuContent) return;
+    var btn = document.createElement('button');
+    btn.id = 'v142-menu-btn';
+    btn.className = 'tl-v142-menu-btn';
+    btn.textContent = '📊 통계 / 일일 시드';
+    btn.onclick = open;
+    menuContent.appendChild(btn);
+  }
+
+  window.TL_STATS = open;
+  window.TL_v142_recordRunStart = recordRunStart;
+  window.TL_v142_recordRunClear = recordRunClear;
+  window.TL_v142_getDailySeed = getDailySeed;
+  window.TL_v142_state = function(){ return stats; };
+
+  function init() {
+    addMenuBtn();
+    setTimeout(addMenuBtn, 2500);
+    console.log('[V142] 통계 + 일일 시드 시스템 활성화 — window.TL_STATS()');
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(init, 1300);
+  } else {
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(init, 1300); });
+  }
+})();
+</script>
+
+<!-- ============================================================
+     [PATCH-V143] 접근성 (WCAG AA 지향)
+       - 글자 크기 조절 (-/+/리셋)
+       - 색맹 모드 (프로타노피아/듀테라노피아/트리타노피아 시뮬)
+       - 키보드 네비게이션 강화 (Tab + arrow keys)
+       - 모든 토글 localStorage 영구 저장
+     ============================================================ -->
+<style id="patch-v143-a11y-css">
+/* 글자 크기 토큰 (사용자 조절) */
+:root { --tl-a11y-font-scale: 1; }
+body.tl-a11y-scaled .hand .card .card-name,
+body.tl-a11y-scaled .hand .card .card-desc,
+body.tl-a11y-scaled .hud,
+body.tl-a11y-scaled .menu,
+body.tl-a11y-scaled .stw-body {
+  font-size: calc(var(--tl-font-base, 14px) * var(--tl-a11y-font-scale)) !important;
+}
+
+/* 색맹 모드 — SVG filter */
+body.tl-a11y-protan { filter: url(#tl-a11y-protan-filter); }
+body.tl-a11y-deutan { filter: url(#tl-a11y-deutan-filter); }
+body.tl-a11y-tritan { filter: url(#tl-a11y-tritan-filter); }
+
+/* 키보드 포커스 강화 */
+body.tl-a11y-keyboard *:focus-visible {
+  outline: 3px solid #9be4ad !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 6px rgba(155,228,173,0.25) !important;
+}
+
+/* 접근성 패널 */
+.tl-v143-modal {
+  position: fixed; inset: 0; z-index: 999985;
+  background: rgba(7,10,12,0.94);
+  display: none; align-items: center; justify-content: center;
+  padding: 20px; backdrop-filter: blur(6px);
+}
+.tl-v143-modal.show { display: flex; }
+.tl-v143-panel {
+  background: linear-gradient(180deg, #141a1f, #0d1216);
+  border: 1px solid #9264a8; border-radius: 10px;
+  max-width: 500px; width: 100%;
+  font-family: 'Noto Sans KR', sans-serif;
+  color: #d6e4dc;
+}
+.tl-v143-header {
+  padding: 16px 22px;
+  border-bottom: 1px solid #9264a8;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.tl-v143-title { font-size: 18px; font-weight: 700; color: #c8a4e8; }
+.tl-v143-body { padding: 18px 22px; }
+.tl-v143-row {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(146,100,168,0.18);
+}
+.tl-v143-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.tl-v143-label {
+  font-size: 13px; color: #c8d6cf; font-weight: 700; margin-bottom: 8px;
+  display: flex; justify-content: space-between;
+}
+.tl-v143-controls { display: flex; gap: 6px; align-items: center; }
+.tl-v143-btn {
+  padding: 6px 12px;
+  background: rgba(146,100,168,0.15);
+  border: 1px solid #9264a8;
+  color: #c8a4e8;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+}
+.tl-v143-btn:hover { background: rgba(146,100,168,0.30); }
+.tl-v143-btn.active { background: linear-gradient(180deg, #9264a8, #5a3d6e); color: #fff; }
+.tl-v143-foot {
+  padding: 12px 22px; background: #0d1216;
+  border-top: 1px solid #9264a8;
+  display: flex; justify-content: flex-end;
+}
+
+.tl-v143-menu-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  background: rgba(146,100,168,0.10);
+  border: 1px solid #9264a8; color: #c8a4e8;
+  border-radius: 4px; cursor: pointer; font-family: inherit;
+  font-size: 12px; margin: 8px auto 0;
+}
+.tl-v143-menu-btn:hover { background: rgba(146,100,168,0.22); transform: translateY(-1px); }
+</style>
+
+<script id="patch-v143-a11y">
+(function(){
+  'use strict';
+  var KEY = 'tl_v143_a11y';
+  var settings = { fontScale: 1, colorMode: 'normal', keyboardFocus: true };
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw) settings = Object.assign(settings, JSON.parse(raw));
+  } catch(_){}
+
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch(_){} }
+
+  function applySettings() {
+    document.documentElement.style.setProperty('--tl-a11y-font-scale', String(settings.fontScale));
+    document.body.classList.toggle('tl-a11y-scaled', settings.fontScale !== 1);
+    document.body.classList.remove('tl-a11y-protan', 'tl-a11y-deutan', 'tl-a11y-tritan');
+    if (settings.colorMode === 'protan') document.body.classList.add('tl-a11y-protan');
+    else if (settings.colorMode === 'deutan') document.body.classList.add('tl-a11y-deutan');
+    else if (settings.colorMode === 'tritan') document.body.classList.add('tl-a11y-tritan');
+    document.body.classList.toggle('tl-a11y-keyboard', settings.keyboardFocus);
+  }
+
+  // 색맹 시뮬 SVG filter 주입
+  function injectColorFilters() {
+    if (document.getElementById('tl-a11y-color-filters')) return;
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.id = 'tl-a11y-color-filters';
+    svg.setAttribute('aria-hidden', 'true');
+    svg.style.cssText = 'position:absolute;width:0;height:0;pointer-events:none;';
+    svg.innerHTML = [
+      '<defs>',
+      // 프로타노피아 (적색맹)
+      '<filter id="tl-a11y-protan-filter"><feColorMatrix type="matrix" values="0.567,0.433,0,0,0 0.558,0.442,0,0,0 0,0.242,0.758,0,0 0,0,0,1,0"/></filter>',
+      // 듀테라노피아 (녹색맹)
+      '<filter id="tl-a11y-deutan-filter"><feColorMatrix type="matrix" values="0.625,0.375,0,0,0 0.7,0.3,0,0,0 0,0.3,0.7,0,0 0,0,0,1,0"/></filter>',
+      // 트리타노피아 (청색맹)
+      '<filter id="tl-a11y-tritan-filter"><feColorMatrix type="matrix" values="0.95,0.05,0,0,0 0,0.433,0.567,0,0 0,0.475,0.525,0,0 0,0,0,1,0"/></filter>',
+      '</defs>'
+    ].join('');
+    document.body.appendChild(svg);
+  }
+
+  // 모달
+  var modal = null;
+  function buildModal() {
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'tl-v143-modal';
+    modal.className = 'tl-v143-modal';
+    modal.innerHTML = [
+      '<div class="tl-v143-panel">',
+      '  <div class="tl-v143-header"><div class="tl-v143-title">♿ 접근성 설정</div></div>',
+      '  <div class="tl-v143-body">',
+      '    <div class="tl-v143-row">',
+      '      <div class="tl-v143-label"><span>글자 크기</span><span id="v143-font-val">' + Math.round(settings.fontScale*100) + '%</span></div>',
+      '      <div class="tl-v143-controls">',
+      '        <button class="tl-v143-btn" data-font="0.85">85%</button>',
+      '        <button class="tl-v143-btn" data-font="1">100%</button>',
+      '        <button class="tl-v143-btn" data-font="1.15">115%</button>',
+      '        <button class="tl-v143-btn" data-font="1.3">130%</button>',
+      '        <button class="tl-v143-btn" data-font="1.5">150%</button>',
+      '      </div>',
+      '    </div>',
+      '    <div class="tl-v143-row">',
+      '      <div class="tl-v143-label"><span>색맹 모드 (시뮬)</span></div>',
+      '      <div class="tl-v143-controls">',
+      '        <button class="tl-v143-btn" data-color="normal">정상</button>',
+      '        <button class="tl-v143-btn" data-color="protan">적색맹</button>',
+      '        <button class="tl-v143-btn" data-color="deutan">녹색맹</button>',
+      '        <button class="tl-v143-btn" data-color="tritan">청색맹</button>',
+      '      </div>',
+      '    </div>',
+      '    <div class="tl-v143-row">',
+      '      <div class="tl-v143-label"><span>키보드 포커스 강화</span></div>',
+      '      <div class="tl-v143-controls">',
+      '        <button class="tl-v143-btn" data-kb="1">켜기</button>',
+      '        <button class="tl-v143-btn" data-kb="0">끄기</button>',
+      '      </div>',
+      '    </div>',
+      '  </div>',
+      '  <div class="tl-v143-foot"><button class="tl-v143-btn" id="v143-close">닫기</button></div>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(modal);
+
+    function refresh() {
+      modal.querySelectorAll('[data-font]').forEach(function(b){
+        b.classList.toggle('active', parseFloat(b.dataset.font) === settings.fontScale);
+      });
+      modal.querySelectorAll('[data-color]').forEach(function(b){
+        b.classList.toggle('active', b.dataset.color === settings.colorMode);
+      });
+      modal.querySelectorAll('[data-kb]').forEach(function(b){
+        b.classList.toggle('active', (b.dataset.kb === '1') === settings.keyboardFocus);
+      });
+      document.getElementById('v143-font-val').textContent = Math.round(settings.fontScale*100) + '%';
+    }
+    refresh();
+
+    modal.querySelectorAll('[data-font]').forEach(function(b){
+      b.onclick = function(){ settings.fontScale = parseFloat(b.dataset.font); applySettings(); save(); refresh(); };
+    });
+    modal.querySelectorAll('[data-color]').forEach(function(b){
+      b.onclick = function(){ settings.colorMode = b.dataset.color; applySettings(); save(); refresh(); };
+    });
+    modal.querySelectorAll('[data-kb]').forEach(function(b){
+      b.onclick = function(){ settings.keyboardFocus = (b.dataset.kb === '1'); applySettings(); save(); refresh(); };
+    });
+    document.getElementById('v143-close').onclick = function(){ modal.classList.remove('show'); };
+    modal.addEventListener('click', function(e){ if (e.target === modal) modal.classList.remove('show'); });
+  }
+  function open() { buildModal(); modal.classList.add('show'); }
+
+  // 메뉴 진입 버튼
+  function addMenuBtn() {
+    if (document.getElementById('v143-menu-btn')) return;
+    var menuContent = document.querySelector('#menu .menu-content');
+    if (!menuContent) return;
+    var btn = document.createElement('button');
+    btn.id = 'v143-menu-btn';
+    btn.className = 'tl-v143-menu-btn';
+    btn.textContent = '♿ 접근성';
+    btn.onclick = open;
+    btn.setAttribute('aria-label', '접근성 설정 열기');
+    menuContent.appendChild(btn);
+  }
+
+  // 키보드 단축키 도움말 (간단)
+  function setupKeyboardNav() {
+    document.addEventListener('keydown', function(e){
+      // Alt+H : 도움말 / 튜토리얼
+      if (e.altKey && e.key.toLowerCase() === 'h') {
+        if (window.TL_TUTORIAL) window.TL_TUTORIAL();
+      }
+      // Alt+A : 접근성 패널
+      if (e.altKey && e.key.toLowerCase() === 'a') open();
+      // Alt+S : 통계
+      if (e.altKey && e.key.toLowerCase() === 's' && window.TL_STATS) window.TL_STATS();
+    });
+  }
+
+  window.TL_A11Y = open;
+  window.TL_v143_settings = function(){ return settings; };
+
+  function init() {
+    injectColorFilters();
+    applySettings();
+    addMenuBtn();
+    setupKeyboardNav();
+    setTimeout(addMenuBtn, 2800);
+    console.log('[V143] 접근성 활성화 — Alt+A 패널, Alt+H 튜토리얼, Alt+S 통계');
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(init, 1400);
+  } else {
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(init, 1400); });
+  }
+})();
+</script>
+
+<!-- ============================================================
+     [PATCH-V144] 캐릭터별 70% 클리어율 리밸런싱
+       자동 튜닝 시뮬 결과 (5 iter) 기반 dealDamage 후킹
+       기존 게임 시스템(NOISE/시너지/유물) 일체 무수정
+       원리: 캐릭터별 power 배율을 dealDamage 결과에 적용
+     ============================================================ -->
+<script id="patch-v144-rebalance">
+(function(){
+  'use strict';
+
+  // ── 자동 튜닝 결과 (sim_v144_rebalance.js iter 5 수렴) ──
+  // 윤세아 73.5% / 한나리 69.5% / 강대호 71.8% / 박종수 74.4% (평균 72.3%, 편차 1.87%p)
+  var POWER = {
+    kairos:   0.941,  // 윤세아 -5.9% (93.5% → 73.5%)
+    lyra:     0.968,  // 한나리 -3.2% (89.5% → 69.5%)
+    locked_3: 0.897,  // 강대호 -10.3% (95.5% → 71.8%)
+    locked_4: 0.863   // 박종수 -13.7% (97.4% → 74.4%)
+  };
+
+  function getActiveChar() {
+    try {
+      return (window.gameState && window.gameState.run && window.gameState.run.character) || null;
+    } catch(_){ return null; }
+  }
+
+  function install() {
+    if (typeof window.dealDamage !== 'function') {
+      setTimeout(install, 400);
+      return;
+    }
+    if (window.dealDamage._v144_hooked) return;
+    var orig = window.dealDamage;
+    window.dealDamage = function(target, amount, opts) {
+      try {
+        var cid = getActiveChar();
+        if (cid && POWER[cid] && typeof amount === 'number') {
+          // 플레이어가 가하는 데미지에만 적용 — 적의 공격은 그대로
+          // 게임에 따라 source 식별 다를 수 있어, target이 enemy일 때 적용
+          var isPlayerAttack = !(opts && (opts.source === 'enemy' || opts.fromEnemy));
+          // target이 플레이어 자신이면 적용 안 함 (자해 카드 보호)
+          var isSelfDamage = target && window.gameState && target === window.gameState.player;
+          if (isPlayerAttack && !isSelfDamage) {
+            amount = Math.round(amount * POWER[cid]);
+          }
+        }
+      } catch(_){}
+      return orig.call(this, target, amount, opts);
+    };
+    window.dealDamage._v144_hooked = true;
+    console.log('[V144] 리밸런싱 hook 활성화 — ' + JSON.stringify(POWER));
+  }
+
+  // 디버그: 현재 활성 power 조회
+  window.TL_v144_power = function(){
+    var cid = getActiveChar();
+    return { activeChar: cid, multiplier: cid && POWER[cid] || 1.0, allPowers: POWER };
+  };
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(install, 1500);
+  } else {
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 1500); });
+  }
+  // dealDamage가 늦게 정의될 가능성 대비
+  setTimeout(install, 3000);
+  setTimeout(install, 5000);
+})();
+</script>

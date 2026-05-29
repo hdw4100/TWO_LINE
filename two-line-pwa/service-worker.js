@@ -3,7 +3,7 @@
  * v123: 외부 이미지 자산 29장 캐시 포함
  */
 
-const CACHE_NAME = 'two-line-v129';
+const CACHE_NAME = 'two-line-v144';
 const CACHED_FILES = [
   './',
   './index.html',
