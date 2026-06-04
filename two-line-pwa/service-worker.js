@@ -3,7 +3,7 @@
  * v123: 외부 이미지 자산 29장 캐시 포함
  */
 
-const CACHE_NAME = 'two-line-v144';
+const CACHE_NAME = 'two-line-v176';
 const CACHED_FILES = [
   './',
   './index.html',
@@ -12,6 +12,7 @@ const CACHED_FILES = [
   './icon-512.png',
   './icon-maskable.png',
   // ─── v123 자산 (assets/) ───
+  './assets/bgm/bgm_main.mp3',
   './assets/logo-small.png',
   './assets/logo-title.jpg',
   './assets/logo-banner.jpg',
